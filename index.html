@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#f97316">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Manutenção MP">
+<meta name="description" content="Cronograma de manutenção preventiva com previsão de próxima intervenção">
+<title>Manutenção Preventiva</title>
+
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+<style>
+/* ── Variables ── */
+:root {
+  --bg:      #0b0f18;
+  --surface: #131926;
+  --s2:      #1a2236;
+  --s3:      #1e2a40;
+  --border:  #2a3550;
+  --accent:  #f97316;
+  --accent2: #fb923c;
+  --ok:      #22c55e;
+  --warn:    #eab308;
+  --danger:  #ef4444;
+  --info:    #38bdf8;
+  --text:    #dde4f0;
+  --muted:   #7a8aaa;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+}
+* { box-sizing: border-box; margin:0; padding:0; -webkit-tap-highlight-color: transparent; }
+html { height:100%; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: 'Barlow', sans-serif; font-weight:300;
+  min-height:100%; overscroll-behavior:none;
+}
+
+/* ══════════════════════════════════════════
+   LOGIN SCREEN
+══════════════════════════════════════════ */
+#screen-login {
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  min-height: 100vh; padding: 24px;
+  background: radial-gradient(ellipse at 60% 20%, rgba(249,115,22,0.12) 0%, transparent 60%),
+              var(--bg);
+}
+.login-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px 32px;
+  width: 100%; max-width: 400px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.5);
+}
+.login-logo {
+  width:56px; height:56px; background:var(--accent);
+  border-radius:12px; display:grid; place-items:center;
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:800; font-size:26px; color:#000;
+  margin: 0 auto 20px;
+}
+.login-card h2 {
+  font-family:'Barlow Condensed',sans-serif;
+  font-weight:800; font-size:1.8rem; text-align:center;
+  text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;
+}
+.login-card p.sub {
+  font-size:0.78rem; color:var(--muted); text-align:center;
+  text-transform:uppercase; letter-spacing:0.08em; margin-bottom:28px;
+}
+.login-field {
+  display:flex; flex-direction:column; gap:6px; margin-bottom:14px;
+}
+.login-field label { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.07em; }
+.login-field input {
+  background:var(--s2); border:1px solid var(--border); border-radius:8px;
+  color:var(--text); font-family:'Barlow',sans-serif; font-size:0.95rem;
+  padding:10px 14px; transition:border-color 0.18s;
+}
+.login-field input:focus { outline:none; border-color:var(--accent); background:#1f2d44; }
+#reg-fields { display:none; flex-direction:column; gap:14px; }
+.btn-primary {
+  width:100%; background:var(--accent); color:#000; border:none; border-radius:8px;
+  padding:12px; font-family:'Barlow Condensed',sans-serif;
+  font-weight:700; font-size:1.05rem; letter-spacing:0.05em; text-transform:uppercase;
+  cursor:pointer; transition:background 0.15s, transform 0.1s; margin-top:6px;
+}
+.btn-primary:hover { background:var(--accent2); }
+.btn-primary:active { transform:scale(0.98); }
+.btn-primary:disabled { opacity:0.6; cursor:not-allowed; }
+.login-err { color:var(--danger); font-size:0.8rem; min-height:18px; margin-top:4px; text-align:center; }
+.btn-link {
+  background:none; border:none; color:var(--muted); font-family:'Barlow',sans-serif;
+  font-size:0.8rem; cursor:pointer; margin-top:14px; text-align:center;
+  display:block; width:100%; text-decoration:underline; padding:0;
+}
+.btn-link:hover { color:var(--text); }
+
+/* ══════════════════════════════════════════
+   APP SCREEN
+══════════════════════════════════════════ */
+#screen-app { display:none; }
+
+/* Header */
+header {
+  background:var(--surface); border-bottom:3px solid var(--accent);
+  padding: calc(12px + var(--safe-top)) 16px 12px;
+  display:flex; align-items:center; gap:12px;
+  position:sticky; top:0; z-index:100;
+  box-shadow:0 4px 20px rgba(0,0,0,0.4);
+}
+.logo {
+  width:38px; height:38px; background:var(--accent); border-radius:7px;
+  display:grid; place-items:center;
+  font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:18px; color:#000;
+  flex-shrink:0;
+}
+.h-title { font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:1.2rem; text-transform:uppercase; letter-spacing:0.04em; line-height:1; }
+.h-sub   { font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.07em; margin-top:2px; }
+.h-right { margin-left:auto; display:flex; align-items:center; gap:8px; }
+
+.today-pill {
+  background:var(--s2); border:1px solid var(--border); border-radius:20px;
+  padding:4px 12px; font-size:0.72rem; color:var(--muted); white-space:nowrap;
+}
+.today-pill strong { color:var(--accent); font-family:'Barlow Condensed',sans-serif; font-size:0.88rem; }
+
+/* Menu button */
+.btn-icon {
+  background:var(--s2); border:1px solid var(--border); border-radius:7px;
+  color:var(--text); width:36px; height:36px;
+  display:grid; place-items:center; cursor:pointer; transition:background 0.15s;
+  position:relative; flex-shrink:0;
+}
+.btn-icon:hover { background:var(--s3); border-color:var(--accent); }
+
+/* Dropdown menu */
+.menu-dropdown {
+  position:absolute; top:calc(100% + 8px); right:0;
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  min-width:220px; box-shadow:0 12px 40px rgba(0,0,0,0.5);
+  display:none; flex-direction:column; overflow:hidden; z-index:200;
+}
+.menu-dropdown.open { display:flex; }
+.menu-item {
+  padding:11px 16px; display:flex; align-items:center; gap:10px;
+  font-size:0.85rem; cursor:pointer; transition:background 0.12s; border:none;
+  background:none; color:var(--text); text-align:left; font-family:'Barlow',sans-serif;
+  font-weight:400;
+}
+.menu-item:hover { background:var(--s2); }
+.menu-item.danger { color:var(--danger); }
+.menu-sep { height:1px; background:var(--border); margin:4px 0; }
+.menu-user { padding:12px 16px; font-size:0.75rem; color:var(--muted); border-bottom:1px solid var(--border); }
+
+#sync-indicator { font-size:0.7rem; color:var(--muted); transition:opacity 0.4s; white-space:nowrap; }
+#btn-install { display:none; }
+.btn-install-pill {
+  background:var(--accent); color:#000; border:none; border-radius:20px;
+  padding:5px 12px; font-family:'Barlow Condensed',sans-serif;
+  font-weight:700; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; gap:5px;
+}
+
+/* Container */
+.container { padding:16px; }
+
+/* Stats */
+.stats { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px; }
+@media (min-width:600px) { .stats { grid-template-columns:repeat(4,1fr); } }
+.stat-card {
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:12px 14px; position:relative; overflow:hidden;
+}
+.stat-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; }
+.stat-card.danger::before { background:var(--danger); }
+.stat-card.warn::before   { background:var(--warn); }
+.stat-card.ok::before     { background:var(--ok); }
+.stat-card.accent::before { background:var(--accent); }
+.s-label { font-size:0.62rem; color:var(--muted); text-transform:uppercase; letter-spacing:0.09em; margin-bottom:4px; }
+.s-value { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:2rem; line-height:1; }
+.stat-card.danger .s-value { color:var(--danger); }
+.stat-card.warn   .s-value { color:var(--warn); }
+.stat-card.ok     .s-value { color:var(--ok); }
+.stat-card.accent .s-value { color:var(--accent); }
+
+/* Panel */
+.panel { background:var(--surface); border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.panel-head {
+  background:var(--s2); border-bottom:1px solid var(--border);
+  padding:10px 16px; display:flex; align-items:center; gap:8px;
+  font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:0.85rem;
+  letter-spacing:0.07em; text-transform:uppercase; color:var(--accent);
+}
+.hint { margin-left:auto; font-size:0.65rem; color:var(--muted); font-family:'Barlow',sans-serif; font-weight:300; letter-spacing:0; text-transform:none; }
+
+/* Table */
+.tbl-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+table { width:100%; border-collapse:collapse; font-size:0.78rem; }
+thead tr { background:var(--s3); border-bottom:2px solid var(--accent); }
+thead th {
+  padding:8px 10px; text-align:left;
+  font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:0.7rem;
+  letter-spacing:0.07em; text-transform:uppercase; color:var(--muted); white-space:nowrap;
+}
+thead th.col-accent { color:var(--accent); }
+thead th.col-info   { color:var(--info); }
+thead th.col-ok     { color:var(--ok); }
+tbody tr { border-bottom:1px solid var(--border); transition:background 0.12s; }
+tbody tr:active { background:rgba(249,115,22,0.06); }
+tbody td { padding:7px 10px; vertical-align:middle; }
+.tear-num  { font-family:'Barlow Condensed',sans-serif; font-weight:800; font-size:1.05rem; color:var(--accent); }
+.model-name { font-size:0.7rem; color:var(--muted); white-space:nowrap; }
+
+/* Inputs */
+.cell-input {
+  background:var(--s2); border:1px solid var(--border); border-radius:5px;
+  color:var(--text); font-family:'Barlow',sans-serif; font-size:0.78rem;
+  padding:5px 7px; transition:border-color 0.18s; width:100%;
+  -webkit-appearance:none;
+}
+.cell-input:focus { outline:none; border-color:var(--accent); background:#1f2d44; }
+.cell-input::placeholder { color:#3a4a60; }
+.input-num  { text-align:right; min-width:105px; }
+.input-date { min-width:130px; color-scheme:dark; }
+.inp-accent { border-color:rgba(249,115,22,0.4) !important; }
+.inp-info   { border-color:rgba(56,189,248,0.35) !important; }
+
+/* Chips */
+.chip {
+  display:inline-flex; align-items:center; gap:4px;
+  padding:3px 8px; border-radius:20px;
+  font-size:0.65rem; font-weight:600;
+  font-family:'Barlow Condensed',sans-serif; letter-spacing:0.05em; text-transform:uppercase; white-space:nowrap;
+}
+.chip::before { content:''; width:5px; height:5px; border-radius:50%; flex-shrink:0; }
+.chip-danger { background:rgba(239,68,68,0.12);  color:var(--danger); } .chip-danger::before { background:var(--danger); }
+.chip-warn   { background:rgba(234,179,8,0.12);  color:var(--warn);   } .chip-warn::before   { background:var(--warn); }
+.chip-ok     { background:rgba(34,197,94,0.12);  color:var(--ok);     } .chip-ok::before     { background:var(--ok); }
+.chip-done   { background:rgba(56,189,248,0.12); color:var(--info);   } .chip-done::before   { background:var(--info); }
+.chip-na     { background:rgba(122,138,170,0.1); color:var(--muted);  } .chip-na::before     { background:var(--muted); }
+
+.fc-date { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:0.9rem; line-height:1; }
+.fc-days { font-size:0.65rem; color:var(--muted); margin-top:1px; }
+
+.bar-wrap { width:60px; height:5px; background:var(--s3); border-radius:4px; overflow:hidden; }
+.bar-fill  { height:5px; border-radius:4px; transition:width 0.35s; }
+
+/* Legend */
+.legend {
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+  padding:10px 16px; border-top:1px solid var(--border);
+  background:var(--s2); font-size:0.68rem; color:var(--muted);
+}
+.legend-item { display:flex; align-items:center; gap:5px; }
+.leg-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+/* Hide on mobile */
+@media (max-width:640px) { .hide-mobile { display:none !important; } }
+
+/* Toast */
+.toast {
+  position:fixed; bottom:calc(20px + var(--safe-bot)); left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--surface); border:1px solid var(--border); border-radius:8px;
+  padding:10px 20px; font-size:0.85rem; color:var(--text);
+  opacity:0; transition:opacity 0.3s, transform 0.3s; z-index:999; white-space:nowrap;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* Notification button active */
+.btn-notif-active { color:var(--ok) !important; }
+
+/* ══════════════════════════════════════════
+   PRINT
+══════════════════════════════════════════ */
+.print-footer { display:none; }
+
+@media print {
+  @page { size:A4 landscape; margin:10mm; }
+  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+  body { background:#fff !important; color:#111 !important; font-size:8pt !important; }
+  #screen-login { display:none !important; }
+  #screen-app { display:block !important; }
+  header { position:static !important; background:#1a1a1a !important; border-bottom:3px solid #f97316 !important; padding:8px 12px !important; box-shadow:none !important; }
+  header * { color:#fff !important; }
+  .logo { background:#f97316 !important; color:#000 !important; width:30px !important; height:30px !important; font-size:14px !important; }
+  .h-title { font-size:12pt !important; }
+  .btn-icon, #btn-install, #sync-indicator, .hint, .menu-dropdown { display:none !important; }
+  .container { padding:6px 0 !important; }
+  .stats { display:grid !important; grid-template-columns:repeat(4,1fr) !important; gap:6px !important; margin-bottom:8px !important; }
+  .stat-card { background:#f5f5f5 !important; border:1px solid #ddd !important; padding:6px 10px !important; }
+  .stat-card::before { height:3px !important; }
+  .stat-card.danger::before { background:#ef4444 !important; }
+  .stat-card.warn::before   { background:#eab308 !important; }
+  .stat-card.ok::before     { background:#22c55e !important; }
+  .stat-card.accent::before { background:#f97316 !important; }
+  .s-label { color:#666 !important; font-size:6pt !important; }
+  .s-value { font-size:14pt !important; }
+  .stat-card.danger .s-value { color:#dc2626 !important; }
+  .stat-card.warn   .s-value { color:#ca8a04 !important; }
+  .stat-card.ok     .s-value { color:#16a34a !important; }
+  .stat-card.accent .s-value { color:#ea580c !important; }
+  .panel { background:#fff !important; border:1px solid #ccc !important; border-radius:4px !important; }
+  .panel-head { background:#1a1a1a !important; color:#f97316 !important; padding:5px 10px !important; font-size:7.5pt !important; }
+  table { font-size:6.5pt !important; }
+  thead tr { background:#222 !important; border-bottom:2px solid #f97316 !important; }
+  thead th { background:#222 !important; color:#ccc !important; padding:4px 6px !important; font-size:6pt !important; border:1px solid #444 !important; }
+  thead th.col-accent { color:#fb923c !important; }
+  thead th.col-info   { color:#7dd3fc !important; }
+  thead th.col-ok     { color:#86efac !important; }
+  tbody tr { border-bottom:1px solid #e0e0e0 !important; background:#fff !important; }
+  tbody tr:nth-child(even) { background:#f9f9f9 !important; }
+  tbody td { padding:3px 6px !important; border:1px solid #e0e0e0 !important; color:#111 !important; }
+  .tear-num { color:#ea580c !important; font-size:8.5pt !important; }
+  .model-name { color:#555 !important; font-size:6pt !important; }
+  .cell-input { background:transparent !important; border:1px solid #ccc !important; color:#111 !important; font-size:6.5pt !important; padding:2px 4px !important; }
+  input[type="date"], input[type="number"] { color:#111 !important; }
+  .chip { font-size:5.5pt !important; padding:2px 5px !important; }
+  .chip-danger { background:#fee2e2 !important; color:#dc2626 !important; }
+  .chip-warn   { background:#fef9c3 !important; color:#92400e !important; }
+  .chip-ok     { background:#dcfce7 !important; color:#166534 !important; }
+  .chip-done   { background:#e0f2fe !important; color:#0369a1 !important; }
+  .chip-na     { background:#f3f4f6 !important; color:#6b7280 !important; }
+  .fc-date { font-size:7.5pt !important; color:#111 !important; }
+  .fc-days { font-size:5.5pt !important; color:#555 !important; }
+  .bar-wrap { background:#e5e7eb !important; }
+  .legend { background:#f5f5f5 !important; border-top:1px solid #ddd !important; padding:5px 10px !important; font-size:6pt !important; color:#555 !important; }
+  .hide-mobile { display:table-cell !important; }
+  .toast { display:none !important; }
+  .print-footer { display:block !important; text-align:right; font-size:6pt; color:#888; margin-top:6px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     LOGIN SCREEN
+══════════════════════════════════════════ -->
+<div id="screen-login">
+  <div class="login-card">
+    <div class="login-logo">MP</div>
+    <h2 id="login-title">Entrar</h2>
+    <p class="sub">Manutencao Preventiva</p>
+
+    <!-- Campos extras so para registro -->
+    <div id="reg-fields" style="display:none;flex-direction:column;gap:14px">
+      <div class="login-field">
+        <label>Nome</label>
+        <input type="text" id="inp-name" placeholder="Seu nome completo" autocomplete="name">
+      </div>
+    </div>
+
+    <!-- E-mail (login + registro) -->
+    <div class="login-field">
+      <label>E-mail</label>
+      <input type="email" id="inp-email" placeholder="seu@email.com" autocomplete="email">
+    </div>
+
+    <!-- Senha (some na tela de recuperacao) -->
+    <div class="login-field" id="campo-senha">
+      <label>Senha</label>
+      <input type="password" id="inp-pass" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password">
+    </div>
+
+    <!-- E-mail para recuperar senha -->
+    <div id="reset-fields" style="display:none;flex-direction:column;gap:6px">
+      <div class="login-field">
+        <label>E-mail cadastrado</label>
+        <input type="email" id="inp-reset-email" placeholder="seu@email.com" autocomplete="email">
+      </div>
+      <p style="font-size:.75rem;color:var(--muted);margin-top:2px">Voce recebera um link para criar nova senha.</p>
+    </div>
+
+    <p class="login-err" id="login-err" style="min-height:20px;font-size:.82rem;margin-top:6px;text-align:center"></p>
+    <button class="btn-primary" id="btn-submit">Entrar</button>
+    <button class="btn-link" id="btn-toggle-reg">Nao tem conta? Cadastre-se</button>
+    <button class="btn-link" id="btn-forgot" style="font-size:.76rem;color:var(--muted);margin-top:2px">Esqueci minha senha</button>
+    <button class="btn-link" id="btn-back" style="display:none;font-size:.78rem">&larr; Voltar ao login</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     APP SCREEN
+══════════════════════════════════════════ -->
+<div id="screen-app">
+
+  <header>
+    <div class="logo">MP</div>
+    <div>
+      <div class="h-title">Manutenção Preventiva</div>
+      <div class="h-sub">Cronograma &amp; Previsão</div>
+    </div>
+    <div class="h-right">
+      <div class="today-pill">Hoje: <strong id="lbl-today"></strong></div>
+      <span id="sync-indicator" style="opacity:0"></span>
+
+      <!-- Install PWA button (shown by browser when installable) -->
+      <button class="btn-install-pill" id="btn-install" onclick="installPWA()">
+        ⬇ Instalar app
+      </button>
+
+      <!-- Menu -->
+      <div style="position:relative">
+        <button class="btn-icon" id="btn-menu" onclick="toggleMenu()" title="Menu">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+        <div class="menu-dropdown" id="menu-dropdown">
+          <div class="menu-user" id="user-name">Usuário</div>
+          <button class="menu-item" onclick="window.print();toggleMenu()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Imprimir / PDF
+          </button>
+          <button class="menu-item" onclick="exportCSV();toggleMenu()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            Exportar CSV / Excel
+          </button>
+          <button class="menu-item" id="btn-notif" onclick="requestNotificationPermission();toggleMenu()">
+            🔔 Ativar notificações
+          </button>
+          <div class="menu-sep"></div>
+          <button class="menu-item danger" onclick="doLogout()">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sair
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Stats -->
+    <div class="stats">
+      <div class="stat-card danger"><div class="s-label">Vencidos</div><div class="s-value" id="s-vencido">—</div></div>
+      <div class="stat-card warn"><div class="s-label">Atenção &lt;30d</div><div class="s-value" id="s-atencao">—</div></div>
+      <div class="stat-card ok"><div class="s-label">Em dia</div><div class="s-value" id="s-ok">—</div></div>
+      <div class="stat-card accent"><div class="s-label">Total Teares</div><div class="s-value" id="s-total">—</div></div>
+    </div>
+
+    <!-- Table -->
+    <div class="panel">
+      <div class="panel-head">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/></svg>
+        Registro de Manutenções
+        <span class="hint hide-mobile">Campos laranja e azul são editáveis</span>
+      </div>
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Tear</th>
+              <th>Modelo</th>
+              <th class="hide-mobile">RPM</th>
+              <th class="hide-mobile">Setup</th>
+              <th class="col-info">Data Manutenção ↓</th>
+              <th class="col-accent">Realizado ↓</th>
+              <th class="col-accent">Real (Voltas) ↓</th>
+              <th class="hide-mobile">Saldo</th>
+              <th class="hide-mobile">Progresso</th>
+              <th class="col-ok">Próxima</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+      <div class="legend">
+        <span style="font-weight:500;color:var(--text)">Legenda:</span>
+        <span class="legend-item"><span class="leg-dot" style="background:var(--danger)"></span>Vencido</span>
+        <span class="legend-item"><span class="leg-dot" style="background:var(--warn)"></span>Atenção (&lt;30d)</span>
+        <span class="legend-item"><span class="leg-dot" style="background:var(--ok)"></span>Em dia</span>
+        <span class="legend-item"><span class="leg-dot" style="background:var(--info)"></span>Manutenção realizada</span>
+      </div>
+    </div>
+
+  </div><!-- /container -->
+
+  <div class="print-footer" id="print-footer"></div>
+</div><!-- /screen-app -->
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+
+
+<script src="app.js"></script>
+</body>
+</html>
