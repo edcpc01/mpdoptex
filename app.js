@@ -9,7 +9,7 @@ var FIREBASE_CONFIG = {
   projectId: "mpdoptex-c5654",
   storageBucket: "mpdoptex-c5654.firebasestorage.app",
   messagingSenderId: "697477319756",
-  appId: "1:697477319756:web:661ce11fe22714d431f8e9"
+  appId: "1:697477319756:web:781d8f7b74ae79f631f8e9"
 };
 
 var BASE_TEARES = [
