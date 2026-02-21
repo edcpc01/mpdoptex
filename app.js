@@ -460,12 +460,27 @@ function calcRow(i) {
 }
 
 function updateStats() {
-  var v=0,a=0,e=0;
-  BASE_TEARES.forEach(function(_,i) {
-    var t = ((document.getElementById('st-'+i)||{}).textContent||'').trim();
-    if (t.indexOf('Vencido')>=0) v++;
-    else if (t.indexOf('Atencao')>=0) a++;
-    else if (t.indexOf('Em dia')>=0) e++;
+  var v=0, a=0, e=0;
+  BASE_TEARES.forEach(function(d, i) {
+    var rVal = (document.getElementById('r-'+i)||{}).value;
+    var vVal = (document.getElementById('v-'+i)||{}).value;
+    var dMnt = (document.getElementById('d-'+i)||{}).value;
+    var realizado = (rVal!==''&&rVal!=null) ? parseFloat(rVal) : (d.realizado!=null?d.realizado:null);
+    var real      = (vVal!==''&&vVal!=null) ? parseFloat(vVal) : null;
+
+    if (real === null || realizado === null) return;
+
+    var saldo = (realizado + d.setup) - real;
+
+    if (saldo < 0 && !dMnt) {
+      v++; // Vencido: passou da manutencao e sem data registrada
+    } else if (!dMnt && d.rpm > 0) {
+      var dias = Math.round(saldo / d.rpm / 60 / 24);
+      if (dias <= 10) a++; // Atencao: faltam 10 dias ou menos
+      else e++;             // Em dia
+    } else if (dMnt || saldo >= 0) {
+      e++; // Em dia: manutencao registrada ou saldo positivo
+    }
   });
   _setText('s-vencido', v);
   _setText('s-atencao', a);
