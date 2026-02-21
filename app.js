@@ -4,7 +4,7 @@
 
 // Config Firebase — inline para garantir disponibilidade
 var FIREBASE_CONFIG = {
-  apiKey:            "AIzaSyAXTpEVEkwT6mcN40wyox0mii7SARFNOsw",
+  apiKey:            "AIzaSyAXTpEVEkwT6mcN40wyox0mii7SARFN0sw",
   authDomain:        "mpdoptex-c5654.firebaseapp.com",
   projectId:         "mpdoptex-c5654",
   storageBucket:     "mpdoptex-c5654.firebasestorage.app",
