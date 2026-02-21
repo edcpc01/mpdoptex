@@ -3,7 +3,7 @@
 //  Checklist, Cronometro, Historico, Sincronizacao em tempo real
 // =============================================================================
 
-var FIREBASE_CONFIG = {
+var firebaseConfig = {
   apiKey: "AIzaSyAXTpEVEkwT6mcN40wyox0mii7SARFN0sw",
   authDomain: "mpdoptex-c5654.firebaseapp.com",
   projectId: "mpdoptex-c5654",
