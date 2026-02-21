@@ -269,8 +269,7 @@ async function onLogin(user) {
   showScreen('screen-app');
   await loadFirestore();
   await carregarRole(user.uid);
-  buildTable();
-  aplicarRole();
+  buildTable();   // buildTable ja usa currentRole internamente
   listenRealtime();
   scheduleNotifications();
 }
@@ -378,9 +377,9 @@ function buildTable() {
       '<td><span class="model-name">'+d.modelo+'</span></td>'+
       '<td class="hide-mobile">'+d.rpm+'</td>'+
       '<td class="hide-mobile" style="color:var(--muted);text-align:right">'+fmt(d.setup)+'</td>'+
-      // Chave + timer
+      // Chave + timer (oculto para operador)
       '<td style="white-space:nowrap;padding:4px 6px">'+
-        '<button class="btn-action btn-wrench'+(emManut?' active':'')+'" id="btn-wrench-'+i+'" onclick="clicarChave('+i+')" title="'+(emManut?'Abrir checklist':'Iniciar manutencao')+'">'+
+        '<button class="btn-action btn-wrench'+(emManut?' active':'')+(currentRole==='operador'?' hidden-operador':'')+'" id="btn-wrench-'+i+'" onclick="clicarChave('+i+')" title="'+(emManut?'Abrir checklist':'Iniciar manutencao')+'" style="'+(currentRole==='operador'?'display:none':'')+'" >'+
           '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>'+
         '</button>'+
         '<span class="row-timer" id="rt-'+i+'" style="display:'+(emManut?'inline':'none')+'">00:00</span>'+
@@ -394,7 +393,7 @@ function buildTable() {
       '<td id="st-'+i+'">-</td>'+
       // Check verde
       '<td style="padding:4px 6px">'+
-        '<button class="btn-action btn-finish" id="btn-finish-'+i+'" onclick="abrirChecklist('+i+')" title="Abrir checklist" style="display:'+(emManut?'inline-flex':'none')+'">'+
+        '<button class="btn-action btn-finish" id="btn-finish-'+i+'" onclick="abrirChecklist('+i+')" title="Abrir checklist" style="display:'+(emManut&&currentRole!=='operador'?'inline-flex':'none')+'">'+
           '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'+
         '</button>'+
       '</td>';
@@ -875,15 +874,14 @@ async function carregarRole(uid) {
 }
 
 function aplicarRole() {
-  // Operador: nao pode editar inputs nem iniciar manutencao
   var readonly = (currentRole === 'operador');
   document.querySelectorAll('.cell-input').forEach(function(el) {
     el.readOnly = readonly;
     el.style.opacity = readonly ? '0.6' : '1';
   });
-  document.querySelectorAll('.btn-wrench, .btn-finish').forEach(function(el) {
-    el.style.display = readonly ? 'none' : '';
-  });
+  // Botoes de manutencao: buildTable ja gerencia por role
+  // Aqui apenas garante readonly visual nos inputs
+
   // Badge de role no header
   var badge = document.getElementById('role-badge');
   var cores  = { admin:'#f97316', tecnico:'#38bdf8', operador:'#7a8aaa' };
@@ -1061,7 +1059,7 @@ function renderTLCard(e, tipo) {
 async function renderPecasUsadas() {
   var container = document.getElementById('dash-pecas');
   if (!container) return;
-  container.innerHTML = '<div class="empty-state"><p>Carregando historico...</p></div>';
+  container.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
 
   if (!db || !currentUser) {
     container.innerHTML = '<div class="empty-state"><p>Login necessario.</p></div>';
@@ -1074,14 +1072,14 @@ async function renderPecasUsadas() {
     catch(e) { snap = await histCol().limit(200).get(); }
 
     if (snap.empty) {
-      container.innerHTML = '<div class="empty-state"><p>Nenhum historico ainda. Complete manutencoes para ver as pecas mais usadas.</p></div>';
+      container.innerHTML = '<div class="empty-state"><p>Nenhum historico ainda. Complete manutencoes para ver as pecas mais trocadas.</p></div>';
       return;
     }
 
-    // Conta ocorrencias de cada item do checklist
-    var contadores = {}; // { itemIdx: { verif, ajuste, limpeza, lubrif, troca, total } }
+    // Conta apenas TROCAS com quantidade
+    var contadores = {};
     CHECKLIST_ITENS.forEach(function(_, idx) {
-      contadores[idx] = { verif:0, ajuste:0, limpeza:0, lubrif:0, troca:0, total:0 };
+      contadores[idx] = { trocas: 0, qtdeTotal: 0 };
     });
 
     var totalManutencoes = 0;
@@ -1092,58 +1090,57 @@ async function renderPecasUsadas() {
       Object.keys(r.checklist).forEach(function(idx) {
         var item = r.checklist[idx];
         var i    = parseInt(idx);
-        if (!contadores[i]) return;
-        if (item.verif)   { contadores[i].verif++;   contadores[i].total++; }
-        if (item.ajuste)  { contadores[i].ajuste++;  contadores[i].total++; }
-        if (item.limpeza) { contadores[i].limpeza++; contadores[i].total++; }
-        if (item.lubrif)  { contadores[i].lubrif++;  contadores[i].total++; }
-        if (item.troca)   { contadores[i].troca++;   contadores[i].total++; }
+        if (!contadores[i] || !item.troca) return;
+        contadores[i].trocas++;
+        var qtde = parseFloat(item.qtde);
+        contadores[i].qtdeTotal += (qtde > 0 ? qtde : 1);
       });
     });
 
-    // Ordena por total desc, pega top 10
+    // Ranking por numero de trocas, top 10
     var ranking = Object.keys(contadores).map(function(idx) {
-      return { idx: parseInt(idx), nome: CHECKLIST_ITENS[idx], ...contadores[idx] };
-    }).filter(function(r){ return r.total > 0; })
-      .sort(function(a,b){ return b.total - a.total })
+      return {
+        idx:       parseInt(idx),
+        nome:      CHECKLIST_ITENS[idx],
+        trocas:    contadores[idx].trocas,
+        qtdeTotal: contadores[idx].qtdeTotal
+      };
+    }).filter(function(r){ return r.trocas > 0; })
+      .sort(function(a,b){ return b.trocas - a.trocas; })
       .slice(0, 10);
 
     if (!ranking.length) {
-      container.innerHTML = '<div class="empty-state"><p>Nenhum item marcado ainda nos checklists.</p></div>';
+      container.innerHTML = '<div class="empty-state"><p>Nenhuma troca registrada ainda.<br>Marque a coluna "Troca" no checklist para ver o ranking.</p></div>';
       return;
     }
 
-    var maxTotal = ranking[0].total;
-    var html = '<div class="pecas-header">'+
-      '<span>Baseado em <strong>'+totalManutencoes+'</strong> manutencao(oes) registrada(s)</span>'+
+    var maxTrocas = ranking[0].trocas;
+    var html = '<div class="pecas-header">' +
+      '<span>Pecas mais trocadas &mdash; baseado em <strong>' + totalManutencoes + '</strong> manutencao(oes)</span>' +
     '</div>';
 
     html += ranking.map(function(r, pos) {
-      var pct = Math.round((r.total / maxTotal) * 100);
-      var cor = pos === 0 ? 'var(--accent)' : pos <= 2 ? 'var(--warn)' : 'var(--ok)';
-      var detalhes = [];
-      if (r.troca)   detalhes.push('<span class="peca-tag peca-troca">Troca: '+r.troca+'x</span>');
-      if (r.lubrif)  detalhes.push('<span class="peca-tag peca-lubrif">Lubrif: '+r.lubrif+'x</span>');
-      if (r.limpeza) detalhes.push('<span class="peca-tag peca-limpeza">Limpeza: '+r.limpeza+'x</span>');
-      if (r.ajuste)  detalhes.push('<span class="peca-tag peca-ajuste">Ajuste: '+r.ajuste+'x</span>');
-      if (r.verif)   detalhes.push('<span class="peca-tag peca-verif">Verif: '+r.verif+'x</span>');
-      return '<div class="peca-row">'+
-        '<div class="peca-pos" style="color:'+cor+'">'+(pos+1)+'</div>'+
-        '<div class="peca-info">'+
-          '<div class="peca-nome">'+r.nome+'</div>'+
-          '<div class="peca-bar-wrap"><div class="peca-bar" style="width:'+pct+'%;background:'+cor+'"></div></div>'+
-          '<div class="peca-tags">'+detalhes.join('')+'</div>'+
-        '</div>'+
-        '<div class="peca-total" style="color:'+cor+'">'+r.total+'x</div>'+
+      var pct    = Math.round((r.trocas / maxTrocas) * 100);
+      var cor    = pos === 0 ? 'var(--accent)' : pos <= 2 ? 'var(--warn)' : 'var(--ok)';
+      var qtdeTxt = r.qtdeTotal > r.trocas
+        ? ' &mdash; <strong>' + r.qtdeTotal + '</strong> unid. trocadas'
+        : '';
+      return '<div class="peca-row">' +
+        '<div class="peca-pos" style="color:' + cor + '">' + (pos + 1) + '</div>' +
+        '<div class="peca-info">' +
+          '<div class="peca-nome">' + r.nome + '</div>' +
+          '<div class="peca-bar-wrap"><div class="peca-bar" style="width:' + pct + '%;background:' + cor + '"></div></div>' +
+          '<div style="font-size:.72rem;color:var(--muted);margin-top:3px">Trocada em <strong style="color:' + cor + '">' + r.trocas + '</strong> manutencao(oes)' + qtdeTxt + '</div>' +
+        '</div>' +
+        '<div class="peca-total" style="color:' + cor + '">' + r.trocas + 'x</div>' +
       '</div>';
     }).join('');
 
     container.innerHTML = html;
   } catch(e) {
-    container.innerHTML = '<div class="empty-state"><p>Erro ao carregar: '+e.message+'</p></div>';
+    container.innerHTML = '<div class="empty-state"><p>Erro ao carregar: ' + e.message + '</p></div>';
   }
 }
-
 // Dashboard tab switcher
 function switchDashTab(tab, btn) {
   document.querySelectorAll('.dash-tab').forEach(function(b){ b.classList.remove('active'); });
