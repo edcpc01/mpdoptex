@@ -268,7 +268,9 @@ async function onLogin(user) {
   _setText('user-name', user.displayName || user.email);
   showScreen('screen-app');
   await loadFirestore();
+  await carregarRole(user.uid);
   buildTable();
+  aplicarRole();
   listenRealtime();
   scheduleNotifications();
 }
@@ -841,3 +843,318 @@ document.addEventListener('DOMContentLoaded', function() {
   var inputPass = document.getElementById('inp-pass');       if(inputPass) inputPass.addEventListener('keydown', function(e){ if(e.key==='Enter') submitForm(); });
   initFirebase();
 });
+
+// =============================================================================
+//  NIVEIS DE ACESSO
+//  Roles: 'admin' | 'tecnico' | 'operador'
+//  Salvo em: /empresa/mpdoptex/usuarios/{uid}
+// =============================================================================
+var currentRole = 'operador'; // default seguro
+
+function usuariosCol() { return db.collection('empresa').doc(EMPRESA_ID).collection('usuarios'); }
+
+async function carregarRole(uid) {
+  if (!db) return;
+  try {
+    var doc = await usuariosCol().doc(uid).get();
+    if (doc.exists && doc.data().role) {
+      currentRole = doc.data().role;
+    } else {
+      // Primeiro usuario = admin, demais = operador
+      var snap = await usuariosCol().get();
+      currentRole = snap.empty ? 'admin' : 'operador';
+      await usuariosCol().doc(uid).set({
+        email: currentUser.email,
+        nome:  currentUser.displayName || currentUser.email,
+        role:  currentRole,
+        criadoEm: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    aplicarRole();
+  } catch(e) { console.warn('[Role]', e.message); }
+}
+
+function aplicarRole() {
+  // Operador: nao pode editar inputs nem iniciar manutencao
+  var readonly = (currentRole === 'operador');
+  document.querySelectorAll('.cell-input').forEach(function(el) {
+    el.readOnly = readonly;
+    el.style.opacity = readonly ? '0.6' : '1';
+  });
+  document.querySelectorAll('.btn-wrench, .btn-finish').forEach(function(el) {
+    el.style.display = readonly ? 'none' : '';
+  });
+  // Badge de role no header
+  var badge = document.getElementById('role-badge');
+  var cores  = { admin:'#f97316', tecnico:'#38bdf8', operador:'#7a8aaa' };
+  var labels = { admin:'Admin', tecnico:'Tecnico', operador:'Operador' };
+  if (badge) {
+    badge.textContent = labels[currentRole] || currentRole;
+    badge.style.color = cores[currentRole] || '#7a8aaa';
+  }
+  // Menu de usuarios: so admin ve
+  var menuUsers = document.getElementById('menu-usuarios');
+  if (menuUsers) menuUsers.style.display = (currentRole === 'admin') ? 'flex' : 'none';
+}
+
+// =============================================================================
+//  MODAL GERENCIAR USUARIOS (admin only)
+// =============================================================================
+var _listaUsuarios = [];
+
+async function abrirGerenciarUsuarios() {
+  var modal = document.getElementById('modal-usuarios');
+  if (modal) modal.classList.add('open');
+  var body  = document.getElementById('usuarios-body');
+  if (body) body.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
+  if (!db || !currentUser) return;
+  try {
+    var snap = await usuariosCol().get();
+    _listaUsuarios = [];
+    snap.forEach(function(doc) { _listaUsuarios.push({ id: doc.id, ...doc.data() }); });
+    renderUsuarios();
+  } catch(e) {
+    if (body) body.innerHTML = '<div class="empty-state"><p>Erro: '+e.message+'</p></div>';
+  }
+}
+
+function fecharGerenciarUsuarios() {
+  var modal = document.getElementById('modal-usuarios');
+  if (modal) modal.classList.remove('open');
+}
+
+function renderUsuarios() {
+  var body = document.getElementById('usuarios-body');
+  if (!body) return;
+  if (!_listaUsuarios.length) {
+    body.innerHTML = '<div class="empty-state"><p>Nenhum usuario cadastrado.</p></div>';
+    return;
+  }
+  var roleLabel = { admin:'Admin', tecnico:'Tecnico', operador:'Operador' };
+  var roleColor = { admin:'var(--accent)', tecnico:'var(--info)', operador:'var(--muted)' };
+  body.innerHTML = _listaUsuarios.map(function(u) {
+    var isSelf = (u.id === currentUser.uid);
+    return '<div class="usuario-row">'+
+      '<div class="usuario-info">'+
+        '<div class="usuario-nome">'+(u.nome||u.email)+(isSelf?' <span style="color:var(--muted);font-size:.7rem">(voce)</span>':'')+'</div>'+
+        '<div class="usuario-email">'+u.email+'</div>'+
+      '</div>'+
+      '<div class="usuario-role-wrap">'+
+        '<select class="usuario-role-sel" id="role-sel-'+u.id+'" onchange="salvarRole(\''+u.id+'\')" '+(isSelf?'disabled':'')+' style="color:'+roleColor[u.role||'operador']+'">'+
+          ['admin','tecnico','operador'].map(function(r){
+            return '<option value="'+r+'" '+(u.role===r?'selected':'')+'>'+roleLabel[r]+'</option>';
+          }).join('')+
+        '</select>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+
+async function salvarRole(uid) {
+  var sel = document.getElementById('role-sel-'+uid);
+  if (!sel || !db) return;
+  var novoRole = sel.value;
+  try {
+    await usuariosCol().doc(uid).update({ role: novoRole });
+    _listaUsuarios.forEach(function(u){ if(u.id===uid) u.role=novoRole; });
+    showToast('Permissao atualizada!');
+    renderUsuarios();
+  } catch(e) { showToast('Erro: '+e.message); }
+}
+
+// =============================================================================
+//  DASHBOARD — LINHA DO TEMPO 30 DIAS + PECAS MAIS USADAS
+// =============================================================================
+async function abrirDashboard() {
+  var modal = document.getElementById('modal-dashboard');
+  if (modal) modal.classList.add('open');
+  renderTimeline();
+  await renderPecasUsadas();
+}
+
+function fecharDashboard() {
+  var modal = document.getElementById('modal-dashboard');
+  if (modal) modal.classList.remove('open');
+}
+
+function renderTimeline() {
+  var container = document.getElementById('dash-timeline');
+  if (!container) return;
+
+  // Coleta teares com data prevista nos proximos 30 dias
+  var eventos = [];
+  BASE_TEARES.forEach(function(d, i) {
+    var rVal = (document.getElementById('r-'+i)||{}).value;
+    var vVal = (document.getElementById('v-'+i)||{}).value;
+    var realizado = (rVal!==''&&rVal!=null) ? parseFloat(rVal) : (d.realizado!=null?d.realizado:null);
+    var real      = (vVal!==''&&vVal!=null) ? parseFloat(vVal) : null;
+    if (realizado === null || real === null || d.rpm === 0 || d.setup === 0) return;
+    var saldo   = (realizado + d.setup) - real;
+    var dias    = Math.round(saldo / d.rpm / 60 / 24);
+    var fcDate  = new Date(today.getTime() + dias * 86400000);
+    eventos.push({ tear: d.tear, modelo: d.modelo, dias: dias, data: fcDate, saldo: saldo });
+  });
+
+  // Ordena por dias
+  eventos.sort(function(a,b){ return a.dias - b.dias; });
+
+  if (!eventos.length) {
+    container.innerHTML = '<div class="empty-state"><p>Preencha as leituras dos teares para ver a linha do tempo.</p></div>';
+    return;
+  }
+
+  // Separa: vencidos, proximos 30d, futuros
+  var vencidos = eventos.filter(function(e){ return e.dias < 0; });
+  var proximos = eventos.filter(function(e){ return e.dias >= 0 && e.dias <= 30; });
+  var futuros  = eventos.filter(function(e){ return e.dias > 30 && e.dias <= 60; });
+
+  var html = '';
+
+  if (vencidos.length) {
+    html += '<div class="tl-section-title" style="color:var(--danger)">&#9888; Vencidos ('+vencidos.length+')</div>';
+    html += vencidos.map(function(e){ return renderTLCard(e, 'danger'); }).join('');
+  }
+
+  if (proximos.length) {
+    html += '<div class="tl-section-title" style="color:var(--accent)">&#128197; Proximos 30 dias ('+proximos.length+')</div>';
+    // Mini linha do tempo visual
+    html += '<div class="tl-ruler">';
+    for (var d=0; d<=30; d+=5) {
+      html += '<span class="tl-ruler-mark" style="left:'+((d/30)*100)+'%">'+(d===0?'Hoje':d+'d')+'</span>';
+    }
+    html += proximos.map(function(e) {
+      var pct = Math.max(0, Math.min(100, (e.dias/30)*100));
+      var col = e.dias<=5?'var(--danger)':e.dias<=15?'var(--warn)':'var(--ok)';
+      return '<div class="tl-dot-wrap" style="left:'+pct+'%">'+
+        '<div class="tl-dot" style="background:'+col+'" title="Tear '+e.tear+' — '+e.dias+'d"></div>'+
+        '<div class="tl-dot-label">T'+e.tear+'</div>'+
+      '</div>';
+    }).join('');
+    html += '</div>';
+    html += proximos.map(function(e){ return renderTLCard(e, e.dias<=5?'danger':e.dias<=15?'warn':'ok'); }).join('');
+  } else {
+    html += '<div class="empty-state" style="padding:20px"><p>Nenhuma manutencao prevista nos proximos 30 dias. &#127881;</p></div>';
+  }
+
+  if (futuros.length) {
+    html += '<div class="tl-section-title" style="color:var(--muted)">&#128336; Proximos 60 dias ('+futuros.length+')</div>';
+    html += futuros.map(function(e){ return renderTLCard(e, 'muted'); }).join('');
+  }
+
+  container.innerHTML = html;
+}
+
+function renderTLCard(e, tipo) {
+  var cores = { danger:'var(--danger)', warn:'var(--warn)', ok:'var(--ok)', muted:'var(--muted)', accent:'var(--accent)' };
+  var cor   = cores[tipo] || 'var(--muted)';
+  var label = e.dias < 0 ? Math.abs(e.dias)+'d atrasado' : e.dias === 0 ? 'Hoje!' : 'em '+e.dias+' dias';
+  return '<div class="tl-card" style="border-left-color:'+cor+'">'+
+    '<div class="tl-card-head">'+
+      '<span class="tl-tear-num" style="color:'+cor+'">Tear '+e.tear+'</span>'+
+      '<span class="tl-modelo">'+e.modelo+'</span>'+
+      '<span class="tl-days" style="color:'+cor+'">'+label+'</span>'+
+    '</div>'+
+    '<div class="tl-date">'+e.data.toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'})+'</div>'+
+  '</div>';
+}
+
+async function renderPecasUsadas() {
+  var container = document.getElementById('dash-pecas');
+  if (!container) return;
+  container.innerHTML = '<div class="empty-state"><p>Carregando historico...</p></div>';
+
+  if (!db || !currentUser) {
+    container.innerHTML = '<div class="empty-state"><p>Login necessario.</p></div>';
+    return;
+  }
+
+  try {
+    var snap;
+    try { snap = await histCol().orderBy('inicio','desc').limit(200).get(); }
+    catch(e) { snap = await histCol().limit(200).get(); }
+
+    if (snap.empty) {
+      container.innerHTML = '<div class="empty-state"><p>Nenhum historico ainda. Complete manutencoes para ver as pecas mais usadas.</p></div>';
+      return;
+    }
+
+    // Conta ocorrencias de cada item do checklist
+    var contadores = {}; // { itemIdx: { verif, ajuste, limpeza, lubrif, troca, total } }
+    CHECKLIST_ITENS.forEach(function(_, idx) {
+      contadores[idx] = { verif:0, ajuste:0, limpeza:0, lubrif:0, troca:0, total:0 };
+    });
+
+    var totalManutencoes = 0;
+    snap.forEach(function(doc) {
+      var r = doc.data();
+      totalManutencoes++;
+      if (!r.checklist) return;
+      Object.keys(r.checklist).forEach(function(idx) {
+        var item = r.checklist[idx];
+        var i    = parseInt(idx);
+        if (!contadores[i]) return;
+        if (item.verif)   { contadores[i].verif++;   contadores[i].total++; }
+        if (item.ajuste)  { contadores[i].ajuste++;  contadores[i].total++; }
+        if (item.limpeza) { contadores[i].limpeza++; contadores[i].total++; }
+        if (item.lubrif)  { contadores[i].lubrif++;  contadores[i].total++; }
+        if (item.troca)   { contadores[i].troca++;   contadores[i].total++; }
+      });
+    });
+
+    // Ordena por total desc, pega top 10
+    var ranking = Object.keys(contadores).map(function(idx) {
+      return { idx: parseInt(idx), nome: CHECKLIST_ITENS[idx], ...contadores[idx] };
+    }).filter(function(r){ return r.total > 0; })
+      .sort(function(a,b){ return b.total - a.total })
+      .slice(0, 10);
+
+    if (!ranking.length) {
+      container.innerHTML = '<div class="empty-state"><p>Nenhum item marcado ainda nos checklists.</p></div>';
+      return;
+    }
+
+    var maxTotal = ranking[0].total;
+    var html = '<div class="pecas-header">'+
+      '<span>Baseado em <strong>'+totalManutencoes+'</strong> manutencao(oes) registrada(s)</span>'+
+    '</div>';
+
+    html += ranking.map(function(r, pos) {
+      var pct = Math.round((r.total / maxTotal) * 100);
+      var cor = pos === 0 ? 'var(--accent)' : pos <= 2 ? 'var(--warn)' : 'var(--ok)';
+      var detalhes = [];
+      if (r.troca)   detalhes.push('<span class="peca-tag peca-troca">Troca: '+r.troca+'x</span>');
+      if (r.lubrif)  detalhes.push('<span class="peca-tag peca-lubrif">Lubrif: '+r.lubrif+'x</span>');
+      if (r.limpeza) detalhes.push('<span class="peca-tag peca-limpeza">Limpeza: '+r.limpeza+'x</span>');
+      if (r.ajuste)  detalhes.push('<span class="peca-tag peca-ajuste">Ajuste: '+r.ajuste+'x</span>');
+      if (r.verif)   detalhes.push('<span class="peca-tag peca-verif">Verif: '+r.verif+'x</span>');
+      return '<div class="peca-row">'+
+        '<div class="peca-pos" style="color:'+cor+'">'+(pos+1)+'</div>'+
+        '<div class="peca-info">'+
+          '<div class="peca-nome">'+r.nome+'</div>'+
+          '<div class="peca-bar-wrap"><div class="peca-bar" style="width:'+pct+'%;background:'+cor+'"></div></div>'+
+          '<div class="peca-tags">'+detalhes.join('')+'</div>'+
+        '</div>'+
+        '<div class="peca-total" style="color:'+cor+'">'+r.total+'x</div>'+
+      '</div>';
+    }).join('');
+
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<div class="empty-state"><p>Erro ao carregar: '+e.message+'</p></div>';
+  }
+}
+
+// Dashboard tab switcher
+function switchDashTab(tab, btn) {
+  document.querySelectorAll('.dash-tab').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  var tl = document.getElementById('dash-timeline');
+  var pc = document.getElementById('dash-pecas');
+  if (tab === 'timeline') {
+    if (tl) tl.style.display = '';
+    if (pc) pc.style.display = 'none';
+  } else {
+    if (tl) tl.style.display = 'none';
+    if (pc) pc.style.display = '';
+  }
+}
