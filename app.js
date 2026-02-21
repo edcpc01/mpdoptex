@@ -464,22 +464,22 @@ function updateStats() {
   BASE_TEARES.forEach(function(d, i) {
     var rVal = (document.getElementById('r-'+i)||{}).value;
     var vVal = (document.getElementById('v-'+i)||{}).value;
-    var dMnt = (document.getElementById('d-'+i)||{}).value;
     var realizado = (rVal!==''&&rVal!=null) ? parseFloat(rVal) : (d.realizado!=null?d.realizado:null);
     var real      = (vVal!==''&&vVal!=null) ? parseFloat(vVal) : null;
 
-    if (real === null || realizado === null) return;
+    // Sem leitura atual = nao conta
+    if (real === null || realizado === null || d.setup === 0) return;
 
     var saldo = (realizado + d.setup) - real;
 
-    if (saldo < 0 && !dMnt) {
-      v++; // Vencido: passou da manutencao e sem data registrada
-    } else if (!dMnt && d.rpm > 0) {
+    if (saldo < 0) {
+      v++; // VENCIDO: saldo negativo independente de ter data
+    } else if (d.rpm > 0) {
       var dias = Math.round(saldo / d.rpm / 60 / 24);
-      if (dias <= 10) a++; // Atencao: faltam 10 dias ou menos
-      else e++;             // Em dia
-    } else if (dMnt || saldo >= 0) {
-      e++; // Em dia: manutencao registrada ou saldo positivo
+      if (dias <= 10) a++; // ATENCAO: faltam 10 dias ou menos
+      else e++;             // EM DIA: mais de 10 dias
+    } else {
+      e++;
     }
   });
   _setText('s-vencido', v);
