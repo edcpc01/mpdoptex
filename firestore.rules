@@ -1,11 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Dados compartilhados da empresa — qualquer usuário autenticado pode ler e gravar
     match /empresa/{empresaId}/teares/{tearId} {
       allow read, write: if request.auth != null;
     }
-
+    match /empresa/{empresaId}/historico/{docId} {
+      allow read, write: if request.auth != null;
+    }
   }
 }

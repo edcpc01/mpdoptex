@@ -1,17 +1,20 @@
 // =============================================================================
-//  MANUTENCAO PREVENTIVA - app.js v3.1
-//  Fix: API key, recuperacao de senha, sincronizacao em tempo real
+//  MANUTENCAO PREVENTIVA - app.js v4.0
+//  Checklist, Cronometro, Historico, Sincronizacao em tempo real
 // =============================================================================
 
 var FIREBASE_CONFIG = {
-  apiKey: "AIzaSyAXTpEVEkwT6mcN40wyox0mii7SARFN0sw",
+  apiKey: "AIzaSyAXTpEVEkwT6mcN40wyox0mii7SARFNOsw",
   authDomain: "mpdoptex-c5654.firebaseapp.com",
   projectId: "mpdoptex-c5654",
   storageBucket: "mpdoptex-c5654.firebasestorage.app",
   messagingSenderId: "697477319756",
-  appId: "1:697477319756:web:781d8f7b74ae79f631f8e9"
+  appId: "1:697477319756:web:661ce11fe22714d431f8e9"
 };
 
+// =============================================================================
+//  DADOS DOS TEARES
+// =============================================================================
 var BASE_TEARES = [
   { tear:1,  modelo:'ORIZIO 32" MONO',    rpm:28, setup:1600000, realizado:42996173 },
   { tear:2,  modelo:'ORIZIO 32" MONO',    rpm:28, setup:1600000, realizado:71637940 },
@@ -42,11 +45,60 @@ var BASE_TEARES = [
   { tear:27, modelo:'LEADSFON 30" DUPLA', rpm:25, setup:1800000, realizado:null     }
 ];
 
+// =============================================================================
+//  CHECKLIST ITENS (do formulario FO_01_012)
+// =============================================================================
+var CHECKLIST_ITENS = [
+  'ALINHAMENTO DAS GAIOLAS',
+  'ALINHAMENTO DOS PINOS SUPORTE',
+  'AIR JET',
+  'PORCELANA DE ENTRADA DO CANINHO',
+  'PORCELANA DE SAIDA DO CANINHO',
+  'CANINHO CONDUTOR',
+  'CORREIA TRACIONADORA (FITA)',
+  'RODA DE QUALIDADE',
+  'ESTICADORES/ROLDANAS DA CORREIA',
+  'TETO DA MAQUINA',
+  'ILUMINACAO SUPERIOR',
+  'PEGA NO',
+  'ALIMENTADOR POSITIVO (CARRINHO)',
+  'PORCELANA DO ALIMENTADOR GUIA',
+  'ALIMENTADOR GUIA FIO',
+  'AGULHAS',
+  'PLATINAS',
+  'ANEL DE PLATINA',
+  'CILINDRO',
+  'BLOCOS',
+  'PEDRAS CAMES',
+  'BICOS DE LUBRIFICACAO',
+  'BASE DO CILINDRO (CREMALHEIRA)',
+  'ILUMINACAO INFERIOR',
+  'ALARGADOR DE MALHA',
+  'CILINDROS DO PUXADOR',
+  'POLIAS DO PUXADOR',
+  'CORREIAS DO PUXADOR',
+  'CILINDROS DA BASE DO PUXADOR',
+  'PORTAS',
+  'SISTEMA DE EMERGENCIA',
+  'MOTOR',
+  'CORREIA DO MOTOR',
+  'BOMBA DE OLEO',
+  'MANGUEIRAS DA BOMBA DE OLEO',
+  'ENGRENAGENS DO FUNITOR'
+];
+
+// =============================================================================
+//  ESTADO GLOBAL
+// =============================================================================
 var db = null, auth = null, currentUser = null;
 var firestoreData = {}, usingFirebase = false;
 var today = new Date(); today.setHours(0,0,0,0);
 var STORAGE_KEY = 'mp_preventiva_v4';
 var EMPRESA_ID  = 'mpdoptex';
+
+// Estado da manutencao em curso
+var manutAtiva = null; // { tearIndex, startTime, timerInterval }
+var clTearIndex = null; // tear aberto no modal
 
 // =============================================================================
 //  FIREBASE
@@ -70,11 +122,12 @@ function initFirebase() {
 
 function tearRef(i)    { return db.collection('empresa').doc(EMPRESA_ID).collection('teares').doc(String(i)); }
 function tearCol()     { return db.collection('empresa').doc(EMPRESA_ID).collection('teares'); }
+function histCol()     { return db.collection('empresa').doc(EMPRESA_ID).collection('historico'); }
 
 // =============================================================================
 //  AUTH
 // =============================================================================
-var _tela = 'login'; // 'login' | 'registro' | 'reset'
+var _tela = 'login';
 
 function mostrarLogin() {
   _tela = 'login';
@@ -89,7 +142,6 @@ function mostrarLogin() {
   document.getElementById('login-err').textContent      = '';
   document.getElementById('login-err').style.color      = '#ef4444';
 }
-
 function mostrarRegistro() {
   _tela = 'registro';
   document.getElementById('reg-fields').style.display   = 'flex';
@@ -102,7 +154,6 @@ function mostrarRegistro() {
   document.getElementById('btn-back').style.display     = 'none';
   document.getElementById('login-err').textContent      = '';
 }
-
 function mostrarReset() {
   _tela = 'reset';
   document.getElementById('reg-fields').style.display   = 'none';
@@ -115,12 +166,7 @@ function mostrarReset() {
   document.getElementById('btn-back').style.display       = 'block';
   document.getElementById('login-err').textContent        = '';
 }
-
-function toggleTela() {
-  if (_tela === 'login') mostrarRegistro();
-  else mostrarLogin();
-}
-
+function toggleTela() { if (_tela === 'login') mostrarRegistro(); else mostrarLogin(); }
 function submitForm() {
   if (_tela === 'login')    doLogin();
   else if (_tela === 'registro') doRegistro();
@@ -137,7 +183,6 @@ async function doLogin() {
   try { await auth.signInWithEmailAndPassword(email, pass); }
   catch(e) { err.textContent = traduzErro(e.code); setBtnLoading(false); }
 }
-
 async function doRegistro() {
   var email = document.getElementById('inp-email').value.trim();
   var pass  = document.getElementById('inp-pass').value;
@@ -145,14 +190,13 @@ async function doRegistro() {
   var err   = document.getElementById('login-err');
   err.textContent = '';
   if (!email) { err.textContent = 'Informe o e-mail.'; return; }
-  if (pass.length < 6) { err.textContent = 'A senha precisa ter ao menos 6 caracteres.'; return; }
+  if (pass.length < 6) { err.textContent = 'Senha precisa ter ao menos 6 caracteres.'; return; }
   setBtnLoading(true);
   try {
     var cred = await auth.createUserWithEmailAndPassword(email, pass);
     if (name) await cred.user.updateProfile({ displayName: name });
   } catch(e) { err.textContent = traduzErro(e.code); setBtnLoading(false); }
 }
-
 async function doReset() {
   var email = document.getElementById('inp-reset-email').value.trim();
   var err   = document.getElementById('login-err');
@@ -162,42 +206,31 @@ async function doReset() {
   try {
     await auth.sendPasswordResetEmail(email);
     err.style.color = '#22c55e';
-    err.textContent = 'E-mail enviado! Verifique sua caixa de entrada (e o spam).';
+    err.textContent = 'E-mail enviado! Verifique sua caixa de entrada.';
     setBtnLoading(false);
-  } catch(e) {
-    err.style.color = '#ef4444';
-    err.textContent = traduzErro(e.code);
-    setBtnLoading(false);
-  }
+  } catch(e) { err.style.color = '#ef4444'; err.textContent = traduzErro(e.code); setBtnLoading(false); }
 }
-
-async function doLogout() {
-  if (auth) await auth.signOut();
-  else showScreen('screen-login');
-}
+async function doLogout() { if (auth) await auth.signOut(); else showScreen('screen-login'); }
 
 function traduzErro(code) {
   var m = {
-    'auth/user-not-found':         'E-mail nao encontrado.',
-    'auth/wrong-password':         'Senha incorreta.',
-    'auth/invalid-email':          'E-mail invalido.',
-    'auth/email-already-in-use':   'Este e-mail ja esta cadastrado.',
-    'auth/weak-password':          'Senha muito fraca. Use ao menos 6 caracteres.',
-    'auth/too-many-requests':      'Muitas tentativas. Aguarde alguns minutos.',
-    'auth/invalid-credential':     'E-mail ou senha incorretos.',
-    'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'Erro de configuracao. Veja instrucoes abaixo.',
-    'auth/network-request-failed': 'Sem conexao com a internet.'
+    'auth/user-not-found':'E-mail nao encontrado.',
+    'auth/wrong-password':'Senha incorreta.',
+    'auth/invalid-email':'E-mail invalido.',
+    'auth/email-already-in-use':'Este e-mail ja esta cadastrado.',
+    'auth/weak-password':'Senha muito fraca.',
+    'auth/too-many-requests':'Muitas tentativas. Aguarde.',
+    'auth/invalid-credential':'E-mail ou senha incorretos.',
+    'auth/network-request-failed':'Sem conexao com a internet.'
   };
-  return m[code] || ('Erro: ' + code);
+  return m[code] || 'Erro: ' + code;
 }
-
 function setBtnLoading(on) {
   var btn = document.getElementById('btn-submit');
   if (!btn) return;
   btn.disabled = on;
   if (on) btn.textContent = 'Aguarde...';
 }
-
 async function onLogin(user) {
   var el = document.getElementById('user-name');
   if (el) el.textContent = user.displayName || user.email;
@@ -242,10 +275,10 @@ function listenRealtime() {
 }
 
 function atualizarLinhaNuvem(i) {
-  var s   = firestoreData[String(i)]; if (!s) return;
-  var rEl = document.getElementById('r-' + i);
-  var vEl = document.getElementById('v-' + i);
-  var dEl = document.getElementById('d-' + i);
+  var s = firestoreData[String(i)]; if (!s) return;
+  var rEl = document.getElementById('r-'+i);
+  var vEl = document.getElementById('v-'+i);
+  var dEl = document.getElementById('d-'+i);
   if (rEl && document.activeElement !== rEl) rEl.value = s.realizado || '';
   if (vEl && document.activeElement !== vEl) vEl.value = s.real      || '';
   if (dEl && document.activeElement !== dEl) dEl.value = s.dataManut || '';
@@ -255,38 +288,32 @@ function atualizarLinhaNuvem(i) {
 async function salvarLinha(i) {
   if (!db || !currentUser) { salvarLocal(); return; }
   var row = {
-    realizado: (document.getElementById('r-' + i)||{}).value || '',
-    real:      (document.getElementById('v-' + i)||{}).value || '',
-    dataManut: (document.getElementById('d-' + i)||{}).value || '',
+    realizado: (document.getElementById('r-'+i)||{}).value || '',
+    real:      (document.getElementById('v-'+i)||{}).value || '',
+    dataManut: (document.getElementById('d-'+i)||{}).value || '',
     updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     updatedBy: currentUser.displayName || currentUser.email
   };
   try {
     showSync('sync');
-    await tearRef(i).set(row, { merge: true });
+    await tearRef(i).set(row, { merge:true });
     firestoreData[String(i)] = row;
     showSync('ok');
   } catch(e) { showSync('err'); salvarLocal(); }
 }
 
-function loadLocal() {
-  try { var r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : {}; } catch(e) { return {}; }
-}
+function loadLocal() { try { var r=localStorage.getItem(STORAGE_KEY); return r?JSON.parse(r):{}; } catch(e){return{};} }
 function salvarLocal() {
-  var s = {};
-  BASE_TEARES.forEach(function(_, i) {
-    s[i] = {
-      realizado: (document.getElementById('r-'+i)||{}).value||'',
-      real:      (document.getElementById('v-'+i)||{}).value||'',
-      dataManut: (document.getElementById('d-'+i)||{}).value||''
-    };
+  var s={};
+  BASE_TEARES.forEach(function(_,i){
+    s[i]={realizado:(document.getElementById('r-'+i)||{}).value||'',real:(document.getElementById('v-'+i)||{}).value||'',dataManut:(document.getElementById('d-'+i)||{}).value||''};
   });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(s));
   showSync('ok');
 }
 function getDados(i) {
   if (usingFirebase && firestoreData[String(i)]) return firestoreData[String(i)];
-  return loadLocal()[i] || {};
+  return loadLocal()[i]||{};
 }
 
 // =============================================================================
@@ -295,30 +322,47 @@ function getDados(i) {
 function buildTable() {
   var tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
-  BASE_TEARES.forEach(function(d, i) {
+  BASE_TEARES.forEach(function(d,i) {
     var s     = getDados(i);
-    var initR = (s.realizado !== undefined && s.realizado !== '') ? s.realizado : (d.realizado != null ? d.realizado : '');
-    var initV = s.real      || '';
-    var initD = s.dataManut || '';
-    var tr    = document.createElement('tr');
+    var initR = (s.realizado!==undefined&&s.realizado!=='') ? s.realizado : (d.realizado!=null?d.realizado:'');
+    var initV = s.real||'';
+    var initD = s.dataManut||'';
+    var emManut = manutAtiva && manutAtiva.tearIndex === i;
+
+    var tr = document.createElement('tr');
+    if (emManut) tr.style.background = 'rgba(249,115,22,0.06)';
+    tr.id = 'tr-' + i;
     tr.innerHTML =
-      '<td><span class="tear-num">' + d.tear + '</span></td>' +
-      '<td><span class="model-name">' + d.modelo + '</span></td>' +
-      '<td class="hide-mobile">' + d.rpm + '</td>' +
-      '<td class="hide-mobile" style="color:var(--muted);text-align:right">' + fmt(d.setup) + '</td>' +
-      '<td><input class="cell-input input-date inp-info" type="date" id="d-' + i + '" value="' + initD + '" onchange="onChange(' + i + ')"></td>' +
-      '<td><input class="cell-input input-num inp-accent" type="number" id="r-' + i + '" value="' + initR + '" placeholder="0" oninput="calcRow(' + i + ')" onblur="onChange(' + i + ')"></td>' +
-      '<td><input class="cell-input input-num inp-accent" type="number" id="v-' + i + '" value="' + initV + '" placeholder="Leitura atual" oninput="calcRow(' + i + ')" onblur="onChange(' + i + ')"></td>' +
-      '<td id="saldo-' + i + '" class="hide-mobile" style="text-align:right;font-weight:500">-</td>' +
-      '<td id="bar-' + i + '" class="hide-mobile">-</td>' +
-      '<td id="fc-' + i + '">-</td>' +
-      '<td id="st-' + i + '">-</td>';
+      '<td><span class="tear-num">'+d.tear+'</span></td>'+
+      '<td><span class="model-name">'+d.modelo+'</span></td>'+
+      '<td class="hide-mobile">'+d.rpm+'</td>'+
+      '<td class="hide-mobile" style="color:var(--muted);text-align:right">'+fmt(d.setup)+'</td>'+
+      // botao iniciar manutencao (chave de boca)
+      '<td style="white-space:nowrap;padding:4px 6px">'+
+        '<button class="btn-action btn-wrench'+(emManut?' active':'')+'" id="btn-wrench-'+i+'" onclick="toggleManutencao('+i+')" title="'+(emManut?'Abrir checklist':'Iniciar manutencao')+'">'+
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>'+
+        '</button>'+
+        '<span class="row-timer" id="rt-'+i+'" style="display:'+(emManut?'inline':'none')+'">00:00</span>'+
+      '</td>'+
+      '<td><input class="cell-input input-date inp-info" type="date" id="d-'+i+'" value="'+initD+'" onchange="onChange('+i+')"></td>'+
+      '<td><input class="cell-input input-num inp-accent" type="number" id="r-'+i+'" value="'+initR+'" placeholder="0" oninput="calcRow('+i+')" onblur="onChange('+i+')"></td>'+
+      '<td><input class="cell-input input-num inp-accent" type="number" id="v-'+i+'" value="'+initV+'" placeholder="Leitura atual" oninput="calcRow('+i+')" onblur="onChange('+i+')"></td>'+
+      '<td id="saldo-'+i+'" class="hide-mobile" style="text-align:right;font-weight:500">-</td>'+
+      '<td id="bar-'+i+'" class="hide-mobile">-</td>'+
+      '<td id="fc-'+i+'">-</td>'+
+      '<td id="st-'+i+'">-</td>'+
+      // botao finalizar
+      '<td style="padding:4px 6px">'+
+        '<button class="btn-action btn-finish" id="btn-finish-'+i+'" onclick="finalizarDaTabela('+i+')" title="Finalizar manutencao" style="display:'+(emManut?'inline-flex':'none')+'">'+
+          '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>'+
+        '</button>'+
+      '</td>';
     tbody.appendChild(tr);
     calcRow(i);
   });
   updateStats();
   var lbl = document.getElementById('lbl-today');
-  if (lbl) lbl.textContent = today.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric'});
+  if (lbl) lbl.textContent = today.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'});
 }
 
 function onChange(i) {
@@ -327,47 +371,47 @@ function onChange(i) {
 }
 
 function calcRow(i) {
-  var d        = BASE_TEARES[i];
-  var rVal     = (document.getElementById('r-'+i)||{}).value;
-  var vVal     = (document.getElementById('v-'+i)||{}).value;
-  var dataMnt  = (document.getElementById('d-'+i)||{}).value;
-  var realizado = (rVal !== '' && rVal != null) ? parseFloat(rVal) : null;
-  var real      = (vVal !== '' && vVal != null) ? parseFloat(vVal) : null;
-  var proximo   = realizado != null ? realizado + d.setup : null;
-  var saldo     = (real != null && proximo != null) ? proximo - real : null;
-  var fcDate    = (saldo != null && d.rpm > 0) ? new Date(today.getTime() + (saldo/d.rpm/60/24)*86400000) : null;
+  var d       = BASE_TEARES[i];
+  var rVal    = (document.getElementById('r-'+i)||{}).value;
+  var vVal    = (document.getElementById('v-'+i)||{}).value;
+  var dataMnt = (document.getElementById('d-'+i)||{}).value;
+  var realizado = (rVal!==''&&rVal!=null) ? parseFloat(rVal) : null;
+  var real      = (vVal!==''&&vVal!=null) ? parseFloat(vVal) : null;
+  var proximo   = realizado!=null ? realizado+d.setup : null;
+  var saldo     = (real!=null&&proximo!=null) ? proximo-real : null;
+  var fcDate    = (saldo!=null&&d.rpm>0) ? new Date(today.getTime()+(saldo/d.rpm/60/24)*86400000) : null;
 
   var sc = document.getElementById('saldo-'+i);
-  if (sc) { sc.textContent = saldo != null ? fmt(Math.round(saldo)) : '-'; sc.style.color = saldo==null?'var(--muted)':saldo<0?'var(--danger)':saldo<500000?'var(--warn)':'var(--ok)'; }
+  if (sc) { sc.textContent=saldo!=null?fmt(Math.round(saldo)):'-'; sc.style.color=saldo==null?'var(--muted)':saldo<0?'var(--danger)':saldo<500000?'var(--warn)':'var(--ok)'; }
 
   var bc = document.getElementById('bar-'+i);
   if (bc) {
-    if (real!=null && proximo!=null && proximo>0) {
-      var pct = Math.max(0,Math.min(100,(real/proximo)*100));
-      var col = saldo<0?'var(--danger)':saldo<500000?'var(--warn)':'var(--ok)';
-      bc.innerHTML = '<div style="display:flex;align-items:center;gap:6px"><div class="bar-wrap"><div class="bar-fill" style="width:'+pct.toFixed(1)+'%;background:'+col+'"></div></div><span style="font-size:.68rem;color:var(--muted)">'+pct.toFixed(0)+'%</span></div>';
-    } else bc.innerHTML = '-';
+    if (real!=null&&proximo!=null&&proximo>0) {
+      var pct=Math.max(0,Math.min(100,(real/proximo)*100));
+      var col=saldo<0?'var(--danger)':saldo<500000?'var(--warn)':'var(--ok)';
+      bc.innerHTML='<div style="display:flex;align-items:center;gap:6px"><div class="bar-wrap"><div class="bar-fill" style="width:'+pct.toFixed(1)+'%;background:'+col+'"></div></div><span style="font-size:.68rem;color:var(--muted)">'+pct.toFixed(0)+'%</span></div>';
+    } else bc.innerHTML='-';
   }
 
   var fc = document.getElementById('fc-'+i);
   if (fc) {
     if (fcDate) {
-      var days = Math.round((fcDate-today)/86400000);
-      var fcCol = days<0?'var(--danger)':days<=30?'var(--warn)':'var(--ok)';
-      var lbl   = days===0?'Hoje':days>0?'em '+days+'d':Math.abs(days)+'d atras';
-      fc.innerHTML = '<div class="fc-date" style="color:'+fcCol+'">'+fcDate.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+'</div><div class="fc-days">'+lbl+'</div>';
-    } else fc.innerHTML = '<span style="color:var(--muted)">-</span>';
+      var days=Math.round((fcDate-today)/86400000);
+      var fcCol=days<0?'var(--danger)':days<=30?'var(--warn)':'var(--ok)';
+      var lbl=days===0?'Hoje':days>0?'em '+days+'d':Math.abs(days)+'d atras';
+      fc.innerHTML='<div class="fc-date" style="color:'+fcCol+'">'+fcDate.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+'</div><div class="fc-days">'+lbl+'</div>';
+    } else fc.innerHTML='<span style="color:var(--muted)">-</span>';
   }
 
   var st = document.getElementById('st-'+i);
   if (st) {
     if (dataMnt) {
-      st.innerHTML = '<span class="chip chip-done">&#10003; '+fmtDate(dataMnt)+'</span>';
+      st.innerHTML='<span class="chip chip-done">&#10003; '+fmtDate(dataMnt)+'</span>';
     } else if (!fcDate) {
-      st.innerHTML = '<span class="chip chip-na">-</span>';
+      st.innerHTML='<span class="chip chip-na">-</span>';
     } else {
-      var d2 = Math.round((fcDate-today)/86400000);
-      st.innerHTML = d2<0 ? '<span class="chip chip-danger">Vencido</span>' : d2<=30 ? '<span class="chip chip-warn">Atencao</span>' : '<span class="chip chip-ok">Em dia</span>';
+      var d2=Math.round((fcDate-today)/86400000);
+      st.innerHTML=d2<0?'<span class="chip chip-danger">Vencido</span>':d2<=30?'<span class="chip chip-warn">Atencao</span>':'<span class="chip chip-ok">Em dia</span>';
     }
   }
   updateStats();
@@ -375,16 +419,315 @@ function calcRow(i) {
 
 function updateStats() {
   var v=0,a=0,e=0;
-  BASE_TEARES.forEach(function(_,i) {
-    var t = ((document.getElementById('st-'+i)||{}).textContent||'').trim();
-    if (t.indexOf('Vencido')>=0) v++;
-    else if (t.indexOf('Atencao')>=0||t.indexOf('nção')>=0) a++;
-    else if (t.indexOf('Em dia')>=0) e++;
+  BASE_TEARES.forEach(function(_,i){
+    var t=((document.getElementById('st-'+i)||{}).textContent||'').trim();
+    if(t.indexOf('Vencido')>=0)v++;
+    else if(t.indexOf('Atencao')>=0||t.indexOf('nção')>=0)a++;
+    else if(t.indexOf('Em dia')>=0)e++;
   });
-  var sv=document.getElementById('s-vencido'); if(sv)sv.textContent=v;
-  var sa=document.getElementById('s-atencao'); if(sa)sa.textContent=a;
-  var so=document.getElementById('s-ok');      if(so)so.textContent=e;
-  var st=document.getElementById('s-total');   if(st)st.textContent=BASE_TEARES.length;
+  var sv=document.getElementById('s-vencido');if(sv)sv.textContent=v;
+  var sa=document.getElementById('s-atencao');if(sa)sa.textContent=a;
+  var so=document.getElementById('s-ok');     if(so)so.textContent=e;
+  var st=document.getElementById('s-total');  if(st)st.textContent=BASE_TEARES.length;
+}
+
+// =============================================================================
+//  MANUTENCAO — CRONOMETRO E CHECKLIST
+// =============================================================================
+function toggleManutencao(i) {
+  // Se ja tem manutencao ativa nesse tear, abre o checklist
+  if (manutAtiva && manutAtiva.tearIndex === i) {
+    abrirChecklist(i);
+    return;
+  }
+  // Se tem manutencao ativa em outro tear, pergunta
+  if (manutAtiva && manutAtiva.tearIndex !== i) {
+    var outro = BASE_TEARES[manutAtiva.tearIndex].tear;
+    if (!confirm('Ha uma manutencao em andamento no Tear ' + outro + '.\nDeseja finalizar aquela e iniciar neste?')) return;
+    cancelarManutencaoAtiva();
+  }
+  // Inicia nova manutencao
+  iniciarManutencao(i);
+}
+
+function iniciarManutencao(i) {
+  var d = BASE_TEARES[i];
+  manutAtiva = {
+    tearIndex: i,
+    startTime: Date.now(),
+    timerInterval: null,
+    checklist: {} // { itemIndex: { verif, ajuste, limpeza, lubrif, troca, qtde } }
+  };
+
+  // Atualiza visual do botao
+  var btnW = document.getElementById('btn-wrench-'+i);
+  var rt   = document.getElementById('rt-'+i);
+  var btnF = document.getElementById('btn-finish-'+i);
+  var tr   = document.getElementById('tr-'+i);
+  if (btnW) btnW.classList.add('active');
+  if (rt)   rt.style.display = 'inline';
+  if (btnF) btnF.style.display = 'inline-flex';
+  if (tr)   tr.style.background = 'rgba(249,115,22,0.06)';
+
+  // Cronometro pequeno na linha
+  manutAtiva.timerInterval = setInterval(function() {
+    var el = document.getElementById('rt-'+i);
+    var modalEl = document.getElementById('modal-timer');
+    var elapsed = Math.floor((Date.now() - manutAtiva.startTime) / 1000);
+    var h = Math.floor(elapsed/3600);
+    var m = Math.floor((elapsed%3600)/60);
+    var s = elapsed%60;
+    var str = (h>0?pad(h)+':':'')+pad(m)+':'+pad(s);
+    var strLong = pad(h)+':'+pad(m)+':'+pad(s);
+    if (el) el.textContent = str;
+    if (modalEl && document.getElementById('modal-checklist').classList.contains('open')) {
+      modalEl.textContent = strLong;
+    }
+  }, 1000);
+
+  showToast('Manutencao iniciada — Tear ' + d.tear);
+  abrirChecklist(i);
+}
+
+function cancelarManutencaoAtiva() {
+  if (!manutAtiva) return;
+  var i = manutAtiva.tearIndex;
+  clearInterval(manutAtiva.timerInterval);
+  var btnW = document.getElementById('btn-wrench-'+i);
+  var rt   = document.getElementById('rt-'+i);
+  var btnF = document.getElementById('btn-finish-'+i);
+  var tr   = document.getElementById('tr-'+i);
+  if (btnW) btnW.classList.remove('active');
+  if (rt)   { rt.style.display='none'; rt.textContent='00:00'; }
+  if (btnF) btnF.style.display='none';
+  if (tr)   tr.style.background='';
+  manutAtiva = null;
+}
+
+function pad(n) { return n < 10 ? '0'+n : String(n); }
+
+// =============================================================================
+//  CHECKLIST MODAL
+// =============================================================================
+function abrirChecklist(i) {
+  clTearIndex = i;
+  var d = BASE_TEARES[i];
+
+  // Titulos
+  document.getElementById('cl-title').textContent  = 'Checklist — Tear ' + d.tear;
+  document.getElementById('cl-modelo').textContent = d.modelo;
+
+  // Timer atual
+  if (manutAtiva && manutAtiva.startTime) {
+    var elapsed = Math.floor((Date.now()-manutAtiva.startTime)/1000);
+    var h=Math.floor(elapsed/3600),m=Math.floor((elapsed%3600)/60),s=elapsed%60;
+    document.getElementById('modal-timer').textContent = pad(h)+':'+pad(m)+':'+pad(s);
+  }
+
+  // Constroi itens
+  var body = document.getElementById('cl-body');
+  body.innerHTML = '';
+  CHECKLIST_ITENS.forEach(function(item, idx) {
+    var saved = (manutAtiva && manutAtiva.checklist[idx]) || {};
+    var row = document.createElement('div');
+    row.className = 'cl-row';
+    row.innerHTML =
+      '<div class="cl-item-name">'+item+'</div>'+
+      '<div class="cl-check"><input type="checkbox" id="cl-verif-'+idx+'" '+(saved.verif?'checked':'')+' onchange="clUpdate('+idx+')"></div>'+
+      '<div class="cl-check"><input type="checkbox" id="cl-ajuste-'+idx+'" '+(saved.ajuste?'checked':'')+' onchange="clUpdate('+idx+')"></div>'+
+      '<div class="cl-check"><input type="checkbox" id="cl-limpeza-'+idx+'" '+(saved.limpeza?'checked':'')+' onchange="clUpdate('+idx+')"></div>'+
+      '<div class="cl-check"><input type="checkbox" id="cl-lubrif-'+idx+'" '+(saved.lubrif?'checked':'')+' onchange="clUpdate('+idx+')"></div>'+
+      '<div class="cl-check"><input type="checkbox" id="cl-troca-'+idx+'" '+(saved.troca?'checked':'')+' onchange="clUpdate('+idx+')"></div>'+
+      '<div><input class="cl-qty" type="number" id="cl-qty-'+idx+'" value="'+(saved.qtde||'')+'" placeholder="-" onchange="clUpdate('+idx+')" min="0"></div>';
+    body.appendChild(row);
+  });
+
+  // Obs salva
+  var obsSalva = (manutAtiva && manutAtiva.obs) || '';
+  document.getElementById('cl-obs').value = obsSalva;
+
+  atualizarProgressoCL();
+  document.getElementById('modal-checklist').classList.add('open');
+}
+
+function clUpdate(idx) {
+  if (!manutAtiva) return;
+  manutAtiva.checklist[idx] = {
+    verif:   document.getElementById('cl-verif-'+idx).checked,
+    ajuste:  document.getElementById('cl-ajuste-'+idx).checked,
+    limpeza: document.getElementById('cl-limpeza-'+idx).checked,
+    lubrif:  document.getElementById('cl-lubrif-'+idx).checked,
+    troca:   document.getElementById('cl-troca-'+idx).checked,
+    qtde:    document.getElementById('cl-qty-'+idx).value
+  };
+  atualizarProgressoCL();
+}
+
+function atualizarProgressoCL() {
+  if (!manutAtiva) return;
+  var marcados = 0;
+  CHECKLIST_ITENS.forEach(function(_, idx) {
+    var s = manutAtiva.checklist[idx];
+    if (s && (s.verif||s.ajuste||s.limpeza||s.lubrif||s.troca)) marcados++;
+  });
+  var total = CHECKLIST_ITENS.length;
+  var pct   = Math.round((marcados/total)*100);
+  var fill  = document.getElementById('cl-prog-fill');
+  var txt   = document.getElementById('cl-prog-txt');
+  if (fill) fill.style.width = pct + '%';
+  if (txt)  txt.textContent  = marcados + ' / ' + total;
+}
+
+function fecharChecklist() {
+  // Salva obs antes de fechar
+  if (manutAtiva) manutAtiva.obs = document.getElementById('cl-obs').value;
+  document.getElementById('modal-checklist').classList.remove('open');
+}
+
+// Chamado pelo botao de check verde na tabela (atalho sem abrir modal)
+function finalizarDaTabela(i) {
+  if (!manutAtiva || manutAtiva.tearIndex !== i) return;
+  abrirChecklist(i); // abre para conferir antes de finalizar
+}
+
+async function finalizarManutencao() {
+  if (!manutAtiva) return;
+  var i       = manutAtiva.tearIndex;
+  var d       = BASE_TEARES[i];
+  var elapsed = Math.floor((Date.now()-manutAtiva.startTime)/1000);
+  var obs     = document.getElementById('cl-obs').value.trim();
+
+  // Salva checklist final no estado
+  CHECKLIST_ITENS.forEach(function(_, idx) { clUpdate(idx); });
+
+  // Monta registro de historico
+  var registro = {
+    tearIndex:  i,
+    tear:       d.tear,
+    modelo:     d.modelo,
+    inicio:     new Date(manutAtiva.startTime).toISOString(),
+    fim:        new Date().toISOString(),
+    duracaoSeg: elapsed,
+    tecnico:    currentUser ? (currentUser.displayName || currentUser.email) : 'desconhecido',
+    obs:        obs,
+    checklist:  JSON.parse(JSON.stringify(manutAtiva.checklist)),
+    createdAt:  usingFirebase ? firebase.firestore.FieldValue.serverTimestamp() : new Date().toISOString()
+  };
+
+  // Salva no Firestore
+  if (usingFirebase && db && currentUser) {
+    try {
+      await histCol().add(registro);
+      showSync('ok');
+    } catch(e) { console.error('Erro ao salvar historico:', e); showSync('err'); }
+  }
+
+  // Atualiza a linha da tabela: data e realizado
+  var dEl = document.getElementById('d-'+i);
+  var hoje = new Date().toISOString().slice(0,10);
+  if (dEl) { dEl.value = hoje; onChange(i); }
+
+  // Fecha modal e limpa estado
+  fecharChecklist();
+  clearInterval(manutAtiva.timerInterval);
+  var btnW = document.getElementById('btn-wrench-'+i);
+  var rt   = document.getElementById('rt-'+i);
+  var btnF = document.getElementById('btn-finish-'+i);
+  var tr   = document.getElementById('tr-'+i);
+  if (btnW) btnW.classList.remove('active');
+  if (rt)   { rt.style.display='none'; rt.textContent='00:00'; }
+  if (btnF) btnF.style.display='none';
+  if (tr)   tr.style.background='';
+  manutAtiva = null;
+
+  var h=Math.floor(elapsed/3600),m=Math.floor((elapsed%3600)/60),s=elapsed%60;
+  showToast('Manutencao finalizada em '+pad(h)+'h'+pad(m)+'m'+pad(s)+'s — Tear '+d.tear);
+}
+
+// =============================================================================
+//  HISTORICO
+// =============================================================================
+var _historicoFiltro = 'todos';
+var _historicoTodos  = [];
+
+async function abrirHistorico() {
+  document.getElementById('modal-historico').classList.add('open');
+  document.getElementById('hist-body').innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
+
+  if (!usingFirebase || !db) {
+    document.getElementById('hist-body').innerHTML = '<div class="empty-state"><p>Historico disponivel apenas com Firebase conectado.</p></div>';
+    return;
+  }
+  try {
+    var snap = await histCol().orderBy('inicio','desc').limit(100).get();
+    _historicoTodos = [];
+    snap.forEach(function(doc) { _historicoTodos.push(doc.data()); });
+    renderHistorico(_historicoTodos);
+  } catch(e) {
+    document.getElementById('hist-body').innerHTML = '<div class="empty-state"><p>Erro ao carregar historico. Verifique as regras do Firestore.</p></div>';
+  }
+}
+
+function fecharHistorico() {
+  document.getElementById('modal-historico').classList.remove('open');
+}
+
+function filtrarHistorico(filtro, btn) {
+  _historicoFiltro = filtro;
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active')});
+  if (btn) btn.classList.add('active');
+
+  var agora = new Date();
+  var dados = _historicoTodos;
+
+  if (filtro === 'mes') {
+    dados = _historicoTodos.filter(function(r) {
+      var d = new Date(r.inicio);
+      return d.getMonth()===agora.getMonth() && d.getFullYear()===agora.getFullYear();
+    });
+  } else if (filtro === 'semana') {
+    var inicioSemana = new Date(agora); inicioSemana.setDate(agora.getDate()-agora.getDay());
+    inicioSemana.setHours(0,0,0,0);
+    dados = _historicoTodos.filter(function(r) { return new Date(r.inicio) >= inicioSemana; });
+  }
+  renderHistorico(dados);
+}
+
+function renderHistorico(lista) {
+  var body = document.getElementById('hist-body');
+  if (!lista || lista.length === 0) {
+    body.innerHTML = '<div class="empty-state"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><p>Nenhuma manutencao registrada neste periodo.</p></div>';
+    return;
+  }
+  body.innerHTML = lista.map(function(r) {
+    var dt   = new Date(r.inicio);
+    var dtFmt = dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+    var dur  = r.duracaoSeg || 0;
+    var h=Math.floor(dur/3600),m=Math.floor((dur%3600)/60),s=dur%60;
+    var durStr = h>0 ? pad(h)+'h '+pad(m)+'min' : pad(m)+'min '+pad(s)+'s';
+
+    // conta itens do checklist
+    var itensFeitos = 0;
+    if (r.checklist) {
+      Object.values(r.checklist).forEach(function(item) {
+        if (item && (item.verif||item.ajuste||item.limpeza||item.lubrif||item.troca)) itensFeitos++;
+      });
+    }
+
+    return '<div class="hist-item">'+
+      '<div class="hist-head">'+
+        '<span class="hist-tear">Tear '+r.tear+'</span>'+
+        '<span class="hist-modelo">'+r.modelo+'</span>'+
+        '<span class="hist-date">'+dtFmt+'</span>'+
+      '</div>'+
+      '<div class="hist-meta">'+
+        '<span>&#128337; Duracao: <strong>'+durStr+'</strong></span>'+
+        '<span>&#128295; Itens: <strong>'+itensFeitos+'/'+CHECKLIST_ITENS.length+'</strong></span>'+
+        '<span>&#128100; Tecnico: <strong>'+(r.tecnico||'-')+'</strong></span>'+
+      '</div>'+
+      (r.obs ? '<div class="hist-obs">'+r.obs+'</div>' : '')+
+    '</div>';
+  }).join('');
 }
 
 // =============================================================================
@@ -395,31 +738,28 @@ async function requestNotificationPermission() {
   var perm = await Notification.requestPermission();
   var btn  = document.getElementById('btn-notif');
   if (perm === 'granted') {
-    if (btn) btn.textContent = '🔔 Notificacoes ativas';
+    if (btn) btn.textContent = '&#128276; Notificacoes ativas';
     showToast('Notificacoes ativadas!');
     scheduleNotifications();
-  } else {
-    showToast('Permissao negada pelo navegador.');
   }
 }
 function scheduleNotifications() {
   if (typeof Notification==='undefined'||Notification.permission!=='granted') return;
-  checkNotify();
-  setInterval(checkNotify, 24*60*60*1000);
+  checkNotify(); setInterval(checkNotify,24*60*60*1000);
 }
 function checkNotify() {
   var alerts=[];
-  BASE_TEARES.forEach(function(d,i) {
-    var s=getDados(i), realizado=s.realizado?parseFloat(s.realizado):d.realizado, real=s.real?parseFloat(s.real):null;
-    if (realizado==null||real==null||d.rpm===0) return;
+  BASE_TEARES.forEach(function(d,i){
+    var s=getDados(i),realizado=s.realizado?parseFloat(s.realizado):d.realizado,real=s.real?parseFloat(s.real):null;
+    if(realizado==null||real==null||d.rpm===0)return;
     var days=Math.round(((realizado+d.setup)-real)/d.rpm/60/24);
-    if (days<=7&&!s.dataManut) alerts.push({tear:d.tear,days:days});
+    if(days<=7&&!s.dataManut)alerts.push({tear:d.tear,days:days});
   });
-  if (!alerts.length) return;
-  var v=alerts.filter(function(a){return a.days<0;}), p=alerts.filter(function(a){return a.days>=0;});
+  if(!alerts.length)return;
+  var v=alerts.filter(function(a){return a.days<0;}),p=alerts.filter(function(a){return a.days>=0;});
   var body='';
-  if (v.length) body+=v.length+' tear(es) com manutencao vencida. ';
-  if (p.length) body+=p.length+' tear(es) nos proximos 7 dias.';
+  if(v.length)body+=v.length+' tear(es) com manutencao vencida. ';
+  if(p.length)body+=p.length+' tear(es) nos proximos 7 dias.';
   new Notification('Manutencao Preventiva',{body:body,icon:'/icons/icon-192.png',tag:'mp-daily'});
 }
 
@@ -428,92 +768,65 @@ function checkNotify() {
 // =============================================================================
 function exportCSV() {
   var rows=[['Tear','Modelo','RPM','Setup','Data Manutencao','Realizado','Real (Voltas)','Saldo','Proxima','Status']];
-  BASE_TEARES.forEach(function(d,i) {
-    var s=getDados(i), realizado=(s.realizado!==undefined&&s.realizado!=='')?parseFloat(s.realizado):(d.realizado||'');
-    var real=s.real?parseFloat(s.real):'', dataMnt=s.dataManut||'';
-    var proximo=realizado!==''?realizado+d.setup:'', saldo=real!==''&&proximo!==''?proximo-real:'';
+  BASE_TEARES.forEach(function(d,i){
+    var s=getDados(i),realizado=(s.realizado!==undefined&&s.realizado!=='')?parseFloat(s.realizado):(d.realizado||'');
+    var real=s.real?parseFloat(s.real):'',dataMnt=s.dataManut||'';
+    var proximo=realizado!==''?realizado+d.setup:'',saldo=real!==''&&proximo!==''?proximo-real:'';
     var fc='',status='';
-    if (saldo!==''&&d.rpm>0) {
-      var fcDate=new Date(today.getTime()+(saldo/d.rpm/60/24)*86400000);
-      fc=fcDate.toLocaleDateString('pt-BR');
-      var days=Math.round((fcDate-today)/86400000);
-      status=dataMnt?'Realizada':days<0?'Vencido':days<=30?'Atencao':'Em dia';
-    }
+    if(saldo!==''&&d.rpm>0){var fcDate=new Date(today.getTime()+(saldo/d.rpm/60/24)*86400000);fc=fcDate.toLocaleDateString('pt-BR');var days=Math.round((fcDate-today)/86400000);status=dataMnt?'Realizada':days<0?'Vencido':days<=30?'Atencao':'Em dia';}
     rows.push([d.tear,d.modelo,d.rpm,d.setup,dataMnt,realizado,real,saldo,fc,status]);
   });
   var csv=rows.map(function(r){return r.map(function(v){return '"'+v+'"';}).join(',');}).join('\n');
   var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
-  var url=URL.createObjectURL(blob), a=document.createElement('a');
-  a.href=url; a.download='manutencao_'+today.toISOString().slice(0,10)+'.csv'; a.click();
-  URL.revokeObjectURL(url); showToast('CSV exportado!');
+  var url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download='manutencao_'+today.toISOString().slice(0,10)+'.csv';a.click();
+  URL.revokeObjectURL(url);showToast('CSV exportado!');
 }
 
 // =============================================================================
-//  UI
+//  UI HELPERS
 // =============================================================================
 function showScreen(id) {
-  ['screen-login','screen-app'].forEach(function(s) {
-    var el=document.getElementById(s); if(!el)return;
-    el.style.display=(s===id)?(id==='screen-login'?'flex':'block'):'none';
-  });
+  ['screen-login','screen-app'].forEach(function(s){var el=document.getElementById(s);if(!el)return;el.style.display=(s===id)?(id==='screen-login'?'flex':'block'):'none';});
 }
-function showSync(state, extra) {
-  var el=document.getElementById('sync-indicator'); if(!el)return;
+function showSync(state,extra) {
+  var el=document.getElementById('sync-indicator');if(!el)return;
   var m={sync:['Sincronizando...','#7a8aaa'],ok:['Salvo na nuvem','#22c55e'],err:['Erro ao salvar','#ef4444'],realtime:['Atualizado por','#38bdf8']};
   var p=m[state]||m.ok;
-  el.textContent=extra?p[0]+' '+extra:p[0]; el.style.color=p[1]; el.style.opacity='1';
-  if (state!=='sync') setTimeout(function(){el.style.opacity='0';},4000);
+  el.textContent=extra?p[0]+' '+extra:p[0];el.style.color=p[1];el.style.opacity='1';
+  if(state!=='sync')setTimeout(function(){el.style.opacity='0';},4000);
 }
 function showToast(msg) {
-  var t=document.getElementById('toast'); if(!t)return;
-  t.textContent=msg; t.classList.add('show'); setTimeout(function(){t.classList.remove('show');},3000);
+  var t=document.getElementById('toast');if(!t)return;
+  t.textContent=msg;t.classList.add('show');setTimeout(function(){t.classList.remove('show');},3000);
 }
-function toggleMenu() { var m=document.getElementById('menu-dropdown'); if(m)m.classList.toggle('open'); }
+function toggleMenu(){var m=document.getElementById('menu-dropdown');if(m)m.classList.toggle('open');}
 document.addEventListener('click',function(e){
-  var menu=document.getElementById('menu-dropdown'), btn=document.getElementById('btn-menu');
-  if(menu&&!menu.contains(e.target)&&btn&&!btn.contains(e.target)) menu.classList.remove('open');
+  var menu=document.getElementById('menu-dropdown'),btn=document.getElementById('btn-menu');
+  if(menu&&!menu.contains(e.target)&&btn&&!btn.contains(e.target))menu.classList.remove('open');
 });
-function fmt(n){ return (n!=null&&n!=='') ? Number(n).toLocaleString('pt-BR') : '-'; }
-function fmtDate(str){ if(!str)return '-'; var p=str.split('-'); return p[2]+'/'+p[1]+'/'+p[0]; }
+function fmt(n){return(n!=null&&n!=='')? Number(n).toLocaleString('pt-BR'):'-';}
+function fmtDate(str){if(!str)return'-';var p=str.split('-');return p[2]+'/'+p[1]+'/'+p[0];}
 
 // =============================================================================
 //  PWA
 // =============================================================================
 var deferredPrompt=null;
-window.addEventListener('beforeinstallprompt',function(e){
-  e.preventDefault(); deferredPrompt=e;
-  var btn=document.getElementById('btn-install'); if(btn)btn.style.display='flex';
-});
-async function installPWA(){
-  if(!deferredPrompt)return;
-  deferredPrompt.prompt();
-  var r=await deferredPrompt.userChoice;
-  if(r.outcome==='accepted'){var btn=document.getElementById('btn-install');if(btn)btn.style.display='none';showToast('App instalado!');}
-  deferredPrompt=null;
-}
+window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();deferredPrompt=e;var btn=document.getElementById('btn-install');if(btn)btn.style.display='flex';});
+async function installPWA(){if(!deferredPrompt)return;deferredPrompt.prompt();var r=await deferredPrompt.userChoice;if(r.outcome==='accepted'){var btn=document.getElementById('btn-install');if(btn)btn.style.display='none';showToast('App instalado!');}deferredPrompt=null;}
 window.addEventListener('appinstalled',function(){var btn=document.getElementById('btn-install');if(btn)btn.style.display='none';});
-if('serviceWorker' in navigator){ navigator.serviceWorker.register('/sw.js').catch(function(e){console.warn('[SW]',e);}); }
+if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(e){console.warn('[SW]',e);});}
 
 // =============================================================================
 //  INIT
 // =============================================================================
 document.addEventListener('DOMContentLoaded', function() {
-  // Botoes da tela de login
-  var btnSubmit = document.getElementById('btn-submit');
-  if (btnSubmit) btnSubmit.onclick = submitForm;
+  var btnSubmit=document.getElementById('btn-submit'); if(btnSubmit)btnSubmit.onclick=submitForm;
+  var btnToggle=document.getElementById('btn-toggle-reg'); if(btnToggle)btnToggle.onclick=toggleTela;
+  var btnForgot=document.getElementById('btn-forgot'); if(btnForgot)btnForgot.onclick=mostrarReset;
+  var btnBack=document.getElementById('btn-back'); if(btnBack)btnBack.onclick=mostrarLogin;
+  var inputPass=document.getElementById('inp-pass'); if(inputPass)inputPass.addEventListener('keydown',function(e){if(e.key==='Enter')submitForm();});
 
-  var btnToggle = document.getElementById('btn-toggle-reg');
-  if (btnToggle) btnToggle.onclick = toggleTela;
-
-  var btnForgot = document.getElementById('btn-forgot');
-  if (btnForgot) btnForgot.onclick = mostrarReset;
-
-  var btnBack = document.getElementById('btn-back');
-  if (btnBack) btnBack.onclick = mostrarLogin;
-
-  // Enter no campo de senha faz login
-  var inputPass = document.getElementById('inp-pass');
-  if (inputPass) inputPass.addEventListener('keydown', function(e){ if(e.key==='Enter') submitForm(); });
-
+  // Adicionar ao Firestore regra para historico
   initFirebase();
 });
