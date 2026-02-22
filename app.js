@@ -267,12 +267,13 @@ function traduzErro(code) {
 async function onLogin(user) {
   _setText('user-name', user.displayName || user.email);
   showScreen('screen-app');
-  await carregarTearesFirestore();  // carrega teares customizados antes de tudo
+  await carregarTearesFirestore();
   await loadFirestore();
   await carregarRole(user.uid);
   buildTable();
   listenRealtime();
   scheduleNotifications();
+  processarQRScan();  // abre checklist se veio de QR Code
 }
 
 // =============================================================================
@@ -841,6 +842,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var btnForgot = document.getElementById('btn-forgot');     if(btnForgot) btnForgot.onclick = mostrarReset;
   var btnBack   = document.getElementById('btn-back');       if(btnBack)   btnBack.onclick   = mostrarLogin;
   var inputPass = document.getElementById('inp-pass');       if(inputPass) inputPass.addEventListener('keydown', function(e){ if(e.key==='Enter') submitForm(); });
+  verificarQRScan();
   initFirebase();
 });
 
@@ -1311,3 +1313,413 @@ async function carregarTearesFirestore() {
     }
   } catch(e) { console.warn('[Teares]', e.message); }
 }
+
+// =============================================================================
+//  DASHBOARD — GRAFICOS (manutencoes por mes + tempo medio)
+// =============================================================================
+async function renderGraficos() {
+  var container = document.getElementById('dash-graficos');
+  if (!container) return;
+  container.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
+  if (!db || !currentUser) { container.innerHTML = '<div class="empty-state"><p>Login necessario.</p></div>'; return; }
+
+  try {
+    var snap;
+    try { snap = await histCol().orderBy('inicio','desc').limit(500).get(); }
+    catch(e) { snap = await histCol().limit(500).get(); }
+
+    if (snap.empty) { container.innerHTML = '<div class="empty-state"><p>Nenhuma manutencao registrada ainda.</p></div>'; return; }
+
+    var registros = [];
+    snap.forEach(function(d){ registros.push(d.data()); });
+    registros.sort(function(a,b){ return (a.inicio||'').localeCompare(b.inicio||''); });
+
+    // Agrupa por mes (ultimos 12)
+    var porMes = {};
+    registros.forEach(function(r) {
+      var d = new Date(r.inicio);
+      var key = d.getFullYear()+'-'+pad(d.getMonth()+1);
+      if (!porMes[key]) porMes[key] = { count:0, durTotal:0 };
+      porMes[key].count++;
+      porMes[key].durTotal += (r.duracaoSeg||0);
+    });
+
+    // Ultimos 12 meses
+    var meses = [];
+    for (var m=11; m>=0; m--) {
+      var d = new Date(today); d.setMonth(d.getMonth()-m);
+      var key = d.getFullYear()+'-'+pad(d.getMonth()+1);
+      var nomeMes = d.toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
+      meses.push({ key:key, label:nomeMes, count:(porMes[key]||{}).count||0, durTotal:(porMes[key]||{}).durTotal||0 });
+    }
+
+    var maxCount = Math.max.apply(null, meses.map(function(m){ return m.count; })) || 1;
+    var totalManut = registros.length;
+    var durMedia   = totalManut > 0 ? Math.round(registros.reduce(function(s,r){ return s+(r.duracaoSeg||0); },0)/totalManut) : 0;
+    var mesAtual   = meses[meses.length-1].count;
+
+    // Tempo medio por tear
+    var porTear = {};
+    registros.forEach(function(r) {
+      var k = r.tear;
+      if (!porTear[k]) porTear[k] = { count:0, dur:0 };
+      porTear[k].count++; porTear[k].dur += (r.duracaoSeg||0);
+    });
+    var tearMedias = Object.keys(porTear).map(function(t){
+      return { tear:t, media: Math.round(porTear[t].dur/porTear[t].count), count: porTear[t].count };
+    }).sort(function(a,b){ return b.media-a.media; }).slice(0,8);
+
+    var h = durMedia > 0 ? Math.floor(durMedia/3600) : 0;
+    var mi = Math.floor((durMedia%3600)/60);
+    var durStr = h>0 ? h+'h '+pad(mi)+'min' : mi+'min';
+
+    var html = '<div class="chart-stats-row">'+
+      '<div class="chart-stat"><div class="chart-stat-val">'+totalManut+'</div><div class="chart-stat-lbl">Total manutencoes</div></div>'+
+      '<div class="chart-stat"><div class="chart-stat-val">'+mesAtual+'</div><div class="chart-stat-lbl">Este mes</div></div>'+
+      '<div class="chart-stat"><div class="chart-stat-val">'+durStr+'</div><div class="chart-stat-lbl">Duracao media</div></div>'+
+    '</div>';
+
+    // Grafico de barras por mes
+    html += '<div class="chart-wrap"><div class="chart-title">Manutencoes por mes (ultimos 12 meses)</div>';
+    html += '<div class="chart-bars">';
+    meses.forEach(function(m) {
+      var pct = Math.round((m.count/maxCount)*100);
+      var col = m.count===0?'rgba(42,53,80,.5)':'var(--accent)';
+      html += '<div class="chart-bar-col">'+
+        '<div class="chart-bar-val">'+(m.count||'')+'</div>'+
+        '<div class="chart-bar" style="height:'+Math.max(pct,2)+'%;background:'+col+'">'+
+          (m.count>0?'<div class="chart-tooltip">'+m.label+': '+m.count+' manut.</div>':'')+
+        '</div>'+
+        '<div class="chart-bar-lbl">'+m.label+'</div>'+
+      '</div>';
+    });
+    html += '</div></div>';
+
+    // Tempo medio por tear
+    if (tearMedias.length) {
+      var maxMedia = tearMedias[0].media || 1;
+      html += '<div class="chart-wrap"><div class="chart-title">Tempo medio de manutencao por tear (top 8)</div>';
+      html += tearMedias.map(function(t) {
+        var hh=Math.floor(t.media/3600), mm=Math.floor((t.media%3600)/60);
+        var tStr = hh>0?hh+'h '+pad(mm)+'min':pad(mm)+'min';
+        var pct = Math.round((t.media/maxMedia)*100);
+        return '<div style="margin-bottom:10px">'+
+          '<div style="display:flex;justify-content:space-between;font-size:.75rem;margin-bottom:4px">'+
+            '<span style="color:var(--text)">Tear <strong>'+t.tear+'</strong> <span style="color:var(--muted)">('+t.count+'x)</span></span>'+
+            '<span style="color:var(--accent);font-family:\'Barlow Condensed\',sans-serif;font-weight:700">'+tStr+'</span>'+
+          '</div>'+
+          '<div class="tec-bar-wrap"><div class="tec-bar" style="width:'+pct+'%;background:var(--info)"></div></div>'+
+        '</div>';
+      }).join('');
+      html += '</div>';
+    }
+
+    container.innerHTML = html;
+  } catch(e) { container.innerHTML = '<div class="empty-state"><p>Erro: '+e.message+'</p></div>'; }
+}
+
+// =============================================================================
+//  DASHBOARD — TECNICOS (ranking + comparativo)
+// =============================================================================
+async function renderTecnicos() {
+  var container = document.getElementById('dash-tecnicos');
+  if (!container) return;
+  container.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
+  if (!db || !currentUser) { container.innerHTML = '<div class="empty-state"><p>Login necessario.</p></div>'; return; }
+
+  try {
+    var snap;
+    try { snap = await histCol().orderBy('inicio','desc').limit(500).get(); }
+    catch(e) { snap = await histCol().limit(500).get(); }
+
+    if (snap.empty) { container.innerHTML = '<div class="empty-state"><p>Nenhuma manutencao registrada.</p></div>'; return; }
+
+    var porTec = {};
+    snap.forEach(function(doc) {
+      var r   = doc.data();
+      var tec = r.tecnico || 'Desconhecido';
+      if (!porTec[tec]) porTec[tec] = { count:0, durTotal:0, teares:new Set(), ultimaData:'' };
+      porTec[tec].count++;
+      porTec[tec].durTotal += (r.duracaoSeg||0);
+      if (r.tear) porTec[tec].teares.add(r.tear);
+      if ((r.inicio||'') > porTec[tec].ultimaData) porTec[tec].ultimaData = r.inicio||'';
+    });
+
+    var ranking = Object.keys(porTec).map(function(nome) {
+      var t = porTec[nome];
+      var media = t.count>0 ? Math.round(t.durTotal/t.count) : 0;
+      return { nome:nome, count:t.count, media:media, teares:t.teares.size, ultimaData:t.ultimaData };
+    }).sort(function(a,b){ return b.count-a.count; });
+
+    var maxCount = ranking[0].count || 1;
+    var cores = ['var(--accent)','var(--warn)','var(--info)'];
+
+    var html = '<div class="pecas-header"><span>Ranking de tecnicos &mdash; '+ranking.length+' tecnico(s) cadastrado(s)</span></div>';
+    html += ranking.map(function(t, pos) {
+      var cor  = cores[pos] || 'var(--ok)';
+      var pct  = Math.round((t.count/maxCount)*100);
+      var hh=Math.floor(t.media/3600), mm=Math.floor((t.media%3600)/60);
+      var mediaStr = hh>0?hh+'h '+pad(mm)+'min':mm+'min';
+      var ultDt = t.ultimaData ? new Date(t.ultimaData).toLocaleDateString('pt-BR') : '-';
+      return '<div class="tec-row">'+
+        '<div class="tec-rank" style="color:'+cor+'">'+(pos+1)+'</div>'+
+        '<div class="tec-info">'+
+          '<div class="tec-nome">'+t.nome+'</div>'+
+          '<div class="tec-bar-wrap"><div class="tec-bar" style="width:'+pct+'%;background:'+cor+'"></div></div>'+
+          '<div class="tec-meta">'+
+            '<span>&#128295; <strong>'+t.count+'</strong> manutencoes</span>'+
+            '<span>&#9201; media <strong>'+mediaStr+'</strong></span>'+
+            '<span>Teares: <strong>'+t.teares+'</strong></span>'+
+            '<span>Ultima: <strong>'+ultDt+'</strong></span>'+
+          '</div>'+
+        '</div>'+
+        '<div><div class="tec-total" style="color:'+cor+'">'+t.count+'</div><div class="tec-total-lbl">manut.</div></div>'+
+      '</div>';
+    }).join('');
+
+    container.innerHTML = html;
+  } catch(e) { container.innerHTML = '<div class="empty-state"><p>Erro: '+e.message+'</p></div>'; }
+}
+
+// =============================================================================
+//  QR CODES
+// =============================================================================
+function abrirQRCodes() {
+  var modal = document.getElementById('modal-qr');
+  if (modal) modal.classList.add('open');
+  var body = document.getElementById('qr-body');
+  if (body) body.innerHTML = '<div class="empty-state"><p>Gerando QR Codes...</p></div>';
+
+  setTimeout(function() {
+    var baseUrl = window.location.origin + window.location.pathname;
+    var html = '<div class="qr-grid">';
+    BASE_TEARES.forEach(function(d, i) {
+      html += '<div class="qr-card" id="qr-card-'+i+'">'+
+        '<canvas id="qr-canvas-'+i+'" class="qr-canvas"></canvas>'+
+        '<div class="qr-tear-num">Tear '+d.tear+'</div>'+
+        '<div class="qr-modelo">'+d.modelo+'</div>'+
+      '</div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+
+    // Gera QR para cada tear
+    BASE_TEARES.forEach(function(d, i) {
+      var url = baseUrl + '?tear='+d.tear;
+      var canvas = document.getElementById('qr-canvas-'+i);
+      if (canvas && typeof QRCode !== 'undefined') {
+        QRCode.toCanvas(canvas, url, { width:120, margin:1, color:{dark:'#000000',light:'#ffffff'} }, function(err){
+          if (err) console.warn('QR '+d.tear+':', err);
+        });
+      } else if (canvas) {
+        // Fallback: texto com URL
+        canvas.style.display = 'none';
+        canvas.insertAdjacentHTML('afterend','<div style="font-size:.55rem;color:var(--muted);word-break:break-all">'+url+'</div>');
+      }
+    });
+  }, 100);
+}
+
+function fecharQRCodes() {
+  var modal = document.getElementById('modal-qr');
+  if (modal) modal.classList.remove('open');
+}
+
+function imprimirQRCodes() {
+  window.print();
+}
+
+// Verifica se URL tem ?tear=N ao carregar (QR scan)
+function verificarQRScan() {
+  var params = new URLSearchParams(window.location.search);
+  var tearNum = params.get('tear');
+  if (!tearNum) return;
+  // Guarda para abrir checklist apos login
+  window._qrTear = parseInt(tearNum);
+}
+
+// Chamado apos login se vier de QR scan
+function processarQRScan() {
+  if (!window._qrTear) return;
+  var tearNum = window._qrTear;
+  var idx = BASE_TEARES.findIndex(function(d){ return d.tear === tearNum; });
+  if (idx >= 0 && currentRole !== 'operador') {
+    showToast('QR Scan — Tear '+tearNum+'. Iniciando manutencao...');
+    setTimeout(function(){ iniciarManutencao(idx); }, 800);
+  }
+  window._qrTear = null;
+}
+
+// =============================================================================
+//  RELATORIO PDF MENSAL
+// =============================================================================
+function abrirRelatorioPDF() {
+  var modal = document.getElementById('modal-pdf');
+  if (modal) modal.classList.add('open');
+  // Define mes atual como default
+  var hoje = new Date();
+  var mesInput = document.getElementById('pdf-mes');
+  if (mesInput) mesInput.value = hoje.getFullYear()+'-'+pad(hoje.getMonth()+1);
+  document.getElementById('pdf-preview').innerHTML = '<div class="empty-state"><p>Selecione o mes e clique em "Gerar PDF".</p></div>';
+}
+
+function fecharPDF() {
+  var modal = document.getElementById('modal-pdf');
+  if (modal) modal.classList.remove('open');
+}
+
+async function gerarPDF() {
+  var mesInput = document.getElementById('pdf-mes');
+  if (!mesInput || !mesInput.value) { showToast('Selecione o mes.'); return; }
+  var [ano, mes] = mesInput.value.split('-').map(Number);
+  var preview = document.getElementById('pdf-preview');
+  preview.innerHTML = '<div class="empty-state"><p>Carregando dados...</p></div>';
+
+  if (!db || !currentUser) { preview.innerHTML = '<div class="empty-state"><p>Login necessario.</p></div>'; return; }
+
+  try {
+    var snap;
+    try { snap = await histCol().orderBy('inicio','desc').limit(500).get(); }
+    catch(e) { snap = await histCol().limit(500).get(); }
+
+    // Filtra pelo mes selecionado
+    var registros = [];
+    snap.forEach(function(doc) {
+      var r = doc.data();
+      var d = new Date(r.inicio);
+      if (d.getFullYear()===ano && d.getMonth()+1===mes) registros.push(r);
+    });
+
+    var nomeMes = new Date(ano, mes-1, 1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+
+    // KPIs
+    var totalManut = registros.length;
+    var durTotal   = registros.reduce(function(s,r){ return s+(r.duracaoSeg||0); },0);
+    var durMedia   = totalManut>0 ? Math.round(durTotal/totalManut) : 0;
+    var hm=Math.floor(durMedia/3600), mm2=Math.floor((durMedia%3600)/60);
+    var durStr = hm>0?hm+'h '+pad(mm2)+'min':mm2+'min';
+
+    // Pecas trocadas no mes
+    var pecasContador = {};
+    var totalPecas = 0;
+    registros.forEach(function(r) {
+      if (!r.checklist) return;
+      Object.keys(r.checklist).forEach(function(idx) {
+        var item = r.checklist[idx];
+        if (!item.troca) return;
+        var nome = CHECKLIST_ITENS[parseInt(idx)] || 'Item '+idx;
+        var qtde = parseFloat(item.qtde)||1;
+        pecasContador[nome] = (pecasContador[nome]||0)+qtde;
+        totalPecas += qtde;
+      });
+    });
+    var topPecas = Object.keys(pecasContador)
+      .map(function(n){ return {nome:n, qtde:pecasContador[n]}; })
+      .sort(function(a,b){ return b.qtde-a.qtde; })
+      .slice(0,10);
+
+    // Status atual dos teares
+    var venc=0, atenc=0, emdia=0;
+    BASE_TEARES.forEach(function(d,i){
+      var t=((document.getElementById('st-'+i)||{}).textContent||'').trim();
+      if(t.indexOf('Vencido')>=0) venc++;
+      else if(t.indexOf('Atencao')>=0) atenc++;
+      else if(t.indexOf('Em dia')>=0) emdia++;
+    });
+
+    // Monta HTML do relatorio
+    var html = '<div style="padding:16px" id="pdf-conteudo">';
+    html += '<div style="text-align:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--accent)">'+
+      '<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:1.4rem;color:var(--text)">MANUTENCAO PREVENTIVA</div>'+
+      '<div style="color:var(--accent);font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:1rem;text-transform:uppercase">Relatorio Mensal &mdash; '+nomeMes+'</div>'+
+      '<div style="font-size:.7rem;color:var(--muted);margin-top:4px">Gerado em '+new Date().toLocaleDateString('pt-BR')+' por '+(currentUser.displayName||currentUser.email)+'</div>'+
+    '</div>';
+
+    html += '<div class="pdf-section"><div class="pdf-section-title">Resumo do Mes</div>'+
+    '<div class="pdf-kpi-row">'+
+      '<div class="pdf-kpi"><div class="pdf-kpi-val">'+totalManut+'</div><div class="pdf-kpi-lbl">Manutencoes realizadas</div></div>'+
+      '<div class="pdf-kpi"><div class="pdf-kpi-val">'+durStr+'</div><div class="pdf-kpi-lbl">Duracao media</div></div>'+
+      '<div class="pdf-kpi"><div class="pdf-kpi-val">'+totalPecas+'</div><div class="pdf-kpi-lbl">Pecas trocadas</div></div>'+
+      '<div class="pdf-kpi"><div class="pdf-kpi-val" style="color:var(--'+(venc>0?'danger':'ok')+')">'+(venc>0?venc+' venc.':emdia+' OK')+'</div><div class="pdf-kpi-lbl">Status atual teares</div></div>'+
+    '</div></div>';
+
+    // Status geral
+    html += '<div class="pdf-section"><div class="pdf-section-title">Status Atual dos Teares</div>'+
+    '<div style="display:flex;gap:20px;font-size:.82rem;padding:8px 0">'+
+      '<span style="color:var(--danger)">&#9632; Vencidos: <strong>'+venc+'</strong></span>'+
+      '<span style="color:var(--warn)">&#9632; Atencao: <strong>'+atenc+'</strong></span>'+
+      '<span style="color:var(--ok)">&#9632; Em dia: <strong>'+emdia+'</strong></span>'+
+      '<span style="color:var(--muted)">Total: <strong>'+BASE_TEARES.length+'</strong></span>'+
+    '</div></div>';
+
+    // Manutencoes realizadas no mes
+    if (registros.length) {
+      html += '<div class="pdf-section"><div class="pdf-section-title">Manutencoes Realizadas ('+registros.length+')</div>';
+      html += '<table class="pdf-table"><thead><tr><th>Tear</th><th>Modelo</th><th>Data</th><th>Duracao</th><th>Tecnico</th><th>Obs</th></tr></thead><tbody>';
+      registros.sort(function(a,b){ return (a.inicio||'').localeCompare(b.inicio||''); }).forEach(function(r) {
+        var dt = new Date(r.inicio);
+        var dur = r.duracaoSeg||0;
+        var hh=Math.floor(dur/3600),mm3=Math.floor((dur%3600)/60);
+        var dStr = hh>0?hh+'h'+pad(mm3)+'min':mm3+'min';
+        html += '<tr><td><strong>'+r.tear+'</strong></td><td>'+r.modelo+'</td><td>'+dt.toLocaleDateString('pt-BR')+'</td><td>'+dStr+'</td><td>'+(r.tecnico||'-')+'</td><td style="font-size:.7rem;color:var(--muted)">'+(r.obs||'-')+'</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    } else {
+      html += '<div class="pdf-section"><div class="pdf-section-title">Manutencoes Realizadas</div><p style="color:var(--muted);font-size:.8rem">Nenhuma manutencao registrada neste mes.</p></div>';
+    }
+
+    // Top pecas trocadas
+    if (topPecas.length) {
+      html += '<div class="pdf-section"><div class="pdf-section-title">Pecas Mais Trocadas no Mes</div>';
+      html += '<table class="pdf-table"><thead><tr><th>#</th><th>Peca</th><th>Qtde Trocada</th></tr></thead><tbody>';
+      topPecas.forEach(function(p,i){ html += '<tr><td>'+(i+1)+'</td><td>'+p.nome+'</td><td><strong>'+p.qtde+'</strong></td></tr>'; });
+      html += '</tbody></table></div>';
+    }
+
+    html += '</div>';
+
+    // Botao imprimir
+    html += '<div style="padding:0 16px 16px;display:flex;gap:10px">'+
+      '<button class="btn-save-teares" onclick="imprimirRelatorio()" style="padding:9px 20px;font-size:.82rem">&#128438; Imprimir / Salvar PDF</button>'+
+      '<span style="font-size:.72rem;color:var(--muted);align-self:center">Use Ctrl+P ou o botao acima. Selecione "Salvar como PDF".</span>'+
+    '</div>';
+
+    preview.innerHTML = html;
+  } catch(e) { preview.innerHTML = '<div class="empty-state"><p>Erro: '+e.message+'</p></div>'; }
+}
+
+function imprimirRelatorio() { window.print(); }
+
+// =============================================================================
+//  PATCH: switchDashTab atualizado com novos paineis
+// =============================================================================
+function switchDashTab(tab, btn) {
+  document.querySelectorAll('.dash-tab').forEach(function(b){ b.classList.remove('active'); });
+  if (btn) btn.classList.add('active');
+  var paineis = ['timeline','graficos','tecnicos','pecas'];
+  paineis.forEach(function(p){
+    var el = document.getElementById('dash-'+p);
+    if (el) el.style.display = (p===tab)?'':'none';
+  });
+  // Carrega dados lazy
+  if (tab==='graficos') renderGraficos();
+  else if (tab==='tecnicos') renderTecnicos();
+  else if (tab==='pecas') renderPecasUsadas();
+}
+
+// =============================================================================
+//  PATCH: abrirDashboard — reseta para aba timeline
+// =============================================================================
+var _dashAberto = false;
+var _origAbrirDashboard = abrirDashboard;
+abrirDashboard = async function() {
+  var modal = document.getElementById('modal-dashboard');
+  if (modal) modal.classList.add('open');
+  // Ativa tab timeline
+  document.querySelectorAll('.dash-tab').forEach(function(b,i){ b.classList.toggle('active',i===0); });
+  ['graficos','tecnicos','pecas'].forEach(function(p){
+    var el=document.getElementById('dash-'+p); if(el) el.style.display='none';
+  });
+  var tl=document.getElementById('dash-timeline'); if(tl) tl.style.display='';
+  renderTimeline();
+};
