@@ -268,8 +268,8 @@ async function onLogin(user) {
   _setText('user-name', user.displayName || user.email);
   showScreen('screen-app');
   await loadFirestore();
-  await carregarRole(user.uid);
-  buildTable();   // buildTable ja usa currentRole internamente
+  await carregarRole(user.uid);  // define currentRole antes de buildTable
+  buildTable();
   listenRealtime();
   scheduleNotifications();
 }
@@ -848,7 +848,7 @@ document.addEventListener('DOMContentLoaded', function() {
 //  Roles: 'admin' | 'tecnico' | 'operador'
 //  Salvo em: /empresa/mpdoptex/usuarios/{uid}
 // =============================================================================
-var currentRole = 'operador'; // default seguro
+var currentRole = 'admin'; // default mostra botoes; carregarRole ajusta depois
 
 function usuariosCol() { return db.collection('empresa').doc(EMPRESA_ID).collection('usuarios'); }
 
@@ -870,7 +870,7 @@ async function carregarRole(uid) {
       });
     }
     aplicarRole();
-  } catch(e) { console.warn('[Role]', e.message); }
+  } catch(e) { console.warn('[Role]', e.message); currentRole = 'admin'; aplicarRole(); }
 }
 
 function aplicarRole() {
