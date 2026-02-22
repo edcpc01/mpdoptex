@@ -14,5 +14,10 @@ service cloud.firestore {
         get(/databases/$(database)/documents/empresa/$(empresaId)/usuarios/$(request.auth.uid)).data.role == 'admin'
       );
     }
+    match /empresa/{empresaId}/config/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/empresa/$(empresaId)/usuarios/$(request.auth.uid)).data.role == 'admin';
+    }
   }
 }

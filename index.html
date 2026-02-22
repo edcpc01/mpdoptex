@@ -226,6 +226,31 @@ tbody td{padding:7px 10px;vertical-align:middle}
 .empty-state p{font-size:.85rem}
 
 
+
+/* ── GERENCIAR TEARES ── */
+.teares-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
+.btn-add-tear{background:rgba(249,115,22,.15);border:1px solid var(--accent);color:var(--accent);padding:7px 16px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;letter-spacing:.04em;transition:background .15s}
+.btn-add-tear:hover{background:rgba(249,115,22,.3)}
+.teares-table-wrap{overflow-x:auto;max-height:calc(100vh - 280px);overflow-y:auto}
+.teares-table{width:100%;border-collapse:collapse;font-size:.8rem}
+.teares-table thead th{padding:8px 10px;background:var(--s3);color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0;z-index:2;white-space:nowrap}
+.teares-table tbody tr{border-bottom:1px solid rgba(42,53,80,.5)}
+.teares-table tbody tr:hover{background:rgba(26,34,54,.4)}
+.tear-inp{background:var(--s2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:.8rem;padding:6px 8px;width:100%;transition:border .15s}
+.tear-inp:focus{outline:none;border-color:var(--accent)}
+.tear-num{width:56px}
+.tear-modelo{width:180px}
+.tear-rpm{width:60px}
+.tear-setup{width:110px}
+.tear-realizado{width:110px}
+.teares-table td{padding:6px 8px;vertical-align:middle}
+.btn-del-tear{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.btn-del-tear:hover{background:rgba(239,68,68,.3)}
+.teares-footer{padding:14px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;flex-shrink:0}
+.btn-save-teares{background:var(--ok);border:none;color:#000;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.9rem;padding:10px 24px;border-radius:8px;cursor:pointer;letter-spacing:.05em;transition:opacity .15s}
+.btn-save-teares:hover{opacity:.85}
+.btn-save-teares:disabled{opacity:.5;cursor:not-allowed}
+
 /* ── TIMELINE ── */
 .tl-section-title{padding:12px 18px 6px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.07em}
 .tl-ruler{position:relative;height:52px;margin:8px 18px 0;background:var(--s3);border-radius:8px;overflow:visible}
@@ -283,7 +308,7 @@ tbody td{padding:7px 10px;vertical-align:middle}
   #screen-app{display:block!important}
   header{position:static!important;background:#1a1a1a!important;border-bottom:3px solid #f97316!important;padding:8px 12px!important;box-shadow:none!important}
   header *{color:#fff!important}
-  .btn-icon,#btn-install,#sync-indicator,.hint,.menu-dropdown,.btn-action,.row-timer{display:none!important}
+  .btn-icon,#btn-install,#sync-indicator,.hint,.menu-dropdown,.btn-action,.btn-wrench,.btn-finish,.row-timer{display:none!important}
   .container{padding:6px 0!important}
   .stats{display:grid!important;grid-template-columns:repeat(4,1fr)!important;gap:6px!important;margin-bottom:8px!important}
   .stat-card{background:#f5f5f5!important;border:1px solid #ddd!important;padding:6px 10px!important}
@@ -360,6 +385,10 @@ tbody td{padding:7px 10px;vertical-align:middle}
           <button class="menu-item" onclick="abrirHistorico();toggleMenu()">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
             Historico de Manutencoes
+          </button>
+          <button class="menu-item" id="menu-teares" onclick="abrirGerenciarTeares();toggleMenu()" style="display:none">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 1.41 14.14"/><path d="M4.93 4.93A10 10 0 0 0 3.52 19.07"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2"/></svg>
+            Gerenciar Teares
           </button>
           <button class="menu-item" id="menu-usuarios" onclick="abrirGerenciarUsuarios();toggleMenu()" style="display:none">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
@@ -519,6 +548,19 @@ tbody td{padding:7px 10px;vertical-align:middle}
       <div id="dash-timeline"></div>
       <div id="dash-pecas" style="display:none"></div>
     </div>
+  </div>
+</div>
+
+
+<!-- MODAL GERENCIAR TEARES -->
+<div class="modal-overlay" id="modal-teares">
+  <div class="modal-box" style="max-width:780px">
+    <div class="modal-header">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M19.07 4.93l-1.41 1.41M5.34 18.66l-1.41 1.41"/></svg>
+      <div class="modal-title">Gerenciar Teares</div>
+      <button class="modal-close" onclick="fecharGerenciarTeares()" style="margin-left:auto">&#10005;</button>
+    </div>
+    <div class="modal-body" id="teares-body" style="padding:0"></div>
   </div>
 </div>
 

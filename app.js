@@ -267,8 +267,9 @@ function traduzErro(code) {
 async function onLogin(user) {
   _setText('user-name', user.displayName || user.email);
   showScreen('screen-app');
+  await carregarTearesFirestore();  // carrega teares customizados antes de tudo
   await loadFirestore();
-  await carregarRole(user.uid);  // define currentRole antes de buildTable
+  await carregarRole(user.uid);
   buildTable();
   listenRealtime();
   scheduleNotifications();
@@ -891,8 +892,10 @@ function aplicarRole() {
     badge.style.color = cores[currentRole] || '#7a8aaa';
   }
   // Menu de usuarios: so admin ve
-  var menuUsers = document.getElementById('menu-usuarios');
-  if (menuUsers) menuUsers.style.display = (currentRole === 'admin') ? 'flex' : 'none';
+  var menuUsers  = document.getElementById('menu-usuarios');
+  var menuTeares = document.getElementById('menu-teares');
+  if (menuUsers)  menuUsers.style.display  = (currentRole === 'admin') ? 'flex' : 'none';
+  if (menuTeares) menuTeares.style.display = (currentRole === 'admin') ? 'flex' : 'none';
 }
 
 // =============================================================================
@@ -1097,7 +1100,7 @@ async function renderPecasUsadas() {
       });
     });
 
-    // Ranking por numero de trocas, top 10
+    // Ranking por qtdeTotal (unidades trocadas), top 10
     var ranking = Object.keys(contadores).map(function(idx) {
       return {
         idx:       parseInt(idx),
@@ -1106,7 +1109,7 @@ async function renderPecasUsadas() {
         qtdeTotal: contadores[idx].qtdeTotal
       };
     }).filter(function(r){ return r.trocas > 0; })
-      .sort(function(a,b){ return b.trocas - a.trocas; })
+      .sort(function(a,b){ return b.qtdeTotal - a.qtdeTotal; })
       .slice(0, 10);
 
     if (!ranking.length) {
@@ -1114,25 +1117,26 @@ async function renderPecasUsadas() {
       return;
     }
 
-    var maxTrocas = ranking[0].trocas;
+    var maxQtde = ranking[0].qtdeTotal || 1;
     var html = '<div class="pecas-header">' +
       '<span>Pecas mais trocadas &mdash; baseado em <strong>' + totalManutencoes + '</strong> manutencao(oes)</span>' +
     '</div>';
 
     html += ranking.map(function(r, pos) {
-      var pct    = Math.round((r.trocas / maxTrocas) * 100);
+      var pct    = Math.round((r.qtdeTotal / maxQtde) * 100);
       var cor    = pos === 0 ? 'var(--accent)' : pos <= 2 ? 'var(--warn)' : 'var(--ok)';
-      var qtdeTxt = r.qtdeTotal > r.trocas
-        ? ' &mdash; <strong>' + r.qtdeTotal + '</strong> unid. trocadas'
-        : '';
+      var vezesTxt = r.trocas === 1 ? '1 manutencao' : r.trocas + ' manutencoes';
       return '<div class="peca-row">' +
         '<div class="peca-pos" style="color:' + cor + '">' + (pos + 1) + '</div>' +
         '<div class="peca-info">' +
           '<div class="peca-nome">' + r.nome + '</div>' +
           '<div class="peca-bar-wrap"><div class="peca-bar" style="width:' + pct + '%;background:' + cor + '"></div></div>' +
-          '<div style="font-size:.72rem;color:var(--muted);margin-top:3px">Trocada em <strong style="color:' + cor + '">' + r.trocas + '</strong> manutencao(oes)' + qtdeTxt + '</div>' +
+          '<div style="font-size:.72rem;color:var(--muted);margin-top:3px">Em ' + vezesTxt + '</div>' +
         '</div>' +
-        '<div class="peca-total" style="color:' + cor + '">' + r.trocas + 'x</div>' +
+        '<div style="text-align:right;flex-shrink:0">' +
+          '<div class="peca-total" style="color:' + cor + '">' + r.qtdeTotal + '</div>' +
+          '<div style="font-size:.6rem;color:var(--muted)">unidades</div>' +
+        '</div>' +
       '</div>';
     }).join('');
 
@@ -1154,4 +1158,156 @@ function switchDashTab(tab, btn) {
     if (tl) tl.style.display = 'none';
     if (pc) pc.style.display = '';
   }
+}
+
+// =============================================================================
+//  GERENCIAR TEARES (Admin only)
+//  Salvo em: /empresa/mpdoptex/config/teares
+// =============================================================================
+var _tearesEditaveis = [];
+
+function configCol() { return db.collection('empresa').doc(EMPRESA_ID).collection('config'); }
+
+async function abrirGerenciarTeares() {
+  var modal = document.getElementById('modal-teares');
+  if (modal) modal.classList.add('open');
+  var body = document.getElementById('teares-body');
+  if (body) body.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
+
+  // Tenta carregar do Firestore, senão usa BASE_TEARES
+  try {
+    var doc = await configCol().doc('teares').get();
+    if (doc.exists && doc.data().lista && doc.data().lista.length) {
+      _tearesEditaveis = JSON.parse(JSON.stringify(doc.data().lista));
+    } else {
+      _tearesEditaveis = JSON.parse(JSON.stringify(BASE_TEARES));
+    }
+  } catch(e) {
+    _tearesEditaveis = JSON.parse(JSON.stringify(BASE_TEARES));
+  }
+  renderTearesEditor();
+}
+
+function fecharGerenciarTeares() {
+  var modal = document.getElementById('modal-teares');
+  if (modal) modal.classList.remove('open');
+}
+
+function renderTearesEditor() {
+  var body = document.getElementById('teares-body');
+  if (!body) return;
+
+  var html = '<div class="teares-toolbar">'+
+    '<button class="btn-add-tear" onclick="adicionarTear()">+ Adicionar Tear</button>'+
+    '<span style="font-size:.72rem;color:var(--muted)">'+_tearesEditaveis.length+' tear(es) cadastrado(s)</span>'+
+  '</div>';
+
+  html += '<div class="teares-table-wrap"><table class="teares-table">'+
+    '<thead><tr>'+
+      '<th>Nº</th><th>Modelo</th><th>RPM</th><th>Setup (voltas)</th><th>Realizado</th><th></th>'+
+    '</tr></thead><tbody id="teares-rows">';
+
+  _tearesEditaveis.forEach(function(t, i) {
+    html += renderTearRow(t, i);
+  });
+
+  html += '</tbody></table></div>';
+
+  html += '<div class="teares-footer">'+
+    '<button class="btn-save-teares" onclick="salvarTeares()">&#10003; Salvar Alteracoes</button>'+
+    '<span style="font-size:.7rem;color:var(--muted)">As alteracoes afetam todos os usuarios</span>'+
+  '</div>';
+
+  body.innerHTML = html;
+}
+
+function renderTearRow(t, i) {
+  return '<tr id="tear-row-'+i+'">'+
+    '<td><input class="tear-inp tear-num" type="number" value="'+t.tear+'" min="1" onchange="updateTear('+i+',\'tear\',this.value)"></td>'+
+    '<td><input class="tear-inp tear-modelo" type="text" value="'+t.modelo+'" onchange="updateTear('+i+',\'modelo\',this.value)"></td>'+
+    '<td><input class="tear-inp tear-rpm" type="number" value="'+t.rpm+'" min="0" onchange="updateTear('+i+',\'rpm\',this.value)"></td>'+
+    '<td><input class="tear-inp tear-setup" type="number" value="'+t.setup+'" min="0" onchange="updateTear('+i+',\'setup\',this.value)"></td>'+
+    '<td><input class="tear-inp tear-realizado" type="number" value="'+(t.realizado!=null?t.realizado:'')+'" placeholder="0" onchange="updateTear('+i+',\'realizado\',this.value)"></td>'+
+    '<td><button class="btn-del-tear" onclick="removerTear('+i+')" title="Remover">&#10005;</button></td>'+
+  '</tr>';
+}
+
+function updateTear(i, campo, valor) {
+  if (!_tearesEditaveis[i]) return;
+  if (campo === 'tear' || campo === 'rpm' || campo === 'setup' || campo === 'realizado') {
+    _tearesEditaveis[i][campo] = valor === '' ? null : Number(valor);
+  } else {
+    _tearesEditaveis[i][campo] = valor;
+  }
+}
+
+function adicionarTear() {
+  var ultimo = _tearesEditaveis[_tearesEditaveis.length-1];
+  var novoNum = ultimo ? (ultimo.tear + 1) : 1;
+  _tearesEditaveis.push({ tear: novoNum, modelo: '', rpm: 28, setup: 1800000, realizado: null });
+  // Adiciona só a nova linha na tbody sem re-renderizar tudo
+  var tbody = document.getElementById('teares-rows');
+  if (tbody) {
+    var i   = _tearesEditaveis.length - 1;
+    var tr  = document.createElement('tr');
+    tr.id   = 'tear-row-'+i;
+    tr.innerHTML = renderTearRow(_tearesEditaveis[i], i).replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, '');
+    tbody.appendChild(tr);
+  }
+  // Atualiza contador
+  var toolbar = document.querySelector('.teares-toolbar span');
+  if (toolbar) toolbar.textContent = _tearesEditaveis.length + ' tear(es) cadastrado(s)';
+}
+
+function removerTear(i) {
+  if (!confirm('Remover Tear ' + _tearesEditaveis[i].tear + '?')) return;
+  _tearesEditaveis.splice(i, 1);
+  renderTearesEditor(); // Re-renderiza com indices corrigidos
+}
+
+async function salvarTeares() {
+  if (!db || !currentUser) { showToast('Sem conexao.'); return; }
+  var btnSave = document.querySelector('.btn-save-teares');
+  if (btnSave) { btnSave.disabled = true; btnSave.textContent = 'Salvando...'; }
+
+  // Valida campos obrigatorios
+  var invalidos = _tearesEditaveis.filter(function(t){ return !t.modelo || !t.modelo.trim(); });
+  if (invalidos.length) {
+    showToast('Preencha o modelo de todos os teares!');
+    if (btnSave) { btnSave.disabled = false; btnSave.textContent = '✓ Salvar Alteracoes'; }
+    return;
+  }
+
+  // Ordena por numero de tear
+  _tearesEditaveis.sort(function(a,b){ return a.tear - b.tear; });
+
+  try {
+    await configCol().doc('teares').set({
+      lista:       _tearesEditaveis,
+      atualizadoEm: firebase.firestore.FieldValue.serverTimestamp(),
+      atualizadoPor: currentUser.displayName || currentUser.email
+    });
+    // Atualiza BASE_TEARES em memoria e reconstroi tabela
+    BASE_TEARES.length = 0;
+    _tearesEditaveis.forEach(function(t){ BASE_TEARES.push(t); });
+    buildTable();
+    showToast('Teares salvos! Tabela atualizada.');
+    fecharGerenciarTeares();
+  } catch(e) {
+    showToast('Erro ao salvar: ' + e.message);
+    if (btnSave) { btnSave.disabled = false; btnSave.textContent = '✓ Salvar Alteracoes'; }
+  }
+}
+
+// Carrega teares do Firestore ao iniciar (substitui BASE_TEARES se houver config salva)
+async function carregarTearesFirestore() {
+  if (!db) return;
+  try {
+    var doc = await configCol().doc('teares').get();
+    if (doc.exists && doc.data().lista && doc.data().lista.length) {
+      BASE_TEARES.length = 0;
+      doc.data().lista.forEach(function(t){ BASE_TEARES.push(t); });
+      console.log('[Teares] Carregados do Firestore:', BASE_TEARES.length, 'teares');
+    }
+  } catch(e) { console.warn('[Teares]', e.message); }
 }
