@@ -1490,39 +1490,114 @@ function abrirQRCodes() {
   var body = document.getElementById('qr-body');
   if (body) body.innerHTML = '<div class="empty-state"><p>Gerando QR Codes...</p></div>';
 
-  setTimeout(function() {
-    var baseUrl = window.location.origin + window.location.pathname;
+  // Garante que a lib QRCode esta carregada
+  function gerarQRs() {
+    var baseUrl = window.location.origin + window.location.pathname.replace(/\/+$/, '');
     var html = '<div class="qr-grid">';
     BASE_TEARES.forEach(function(d, i) {
       html += '<div class="qr-card" id="qr-card-'+i+'">'+
-        '<canvas id="qr-canvas-'+i+'" class="qr-canvas"></canvas>'+
+        '<canvas id="qr-canvas-'+i+'" width="130" height="130" class="qr-canvas"></canvas>'+
         '<div class="qr-tear-num">Tear '+d.tear+'</div>'+
         '<div class="qr-modelo">'+d.modelo+'</div>'+
+        '<button onclick="imprimirQRIndividual('+i+')" style="margin-top:4px;background:none;border:1px solid var(--border);color:var(--muted);font-size:.65rem;padding:3px 10px;border-radius:6px;cursor:pointer">&#128438; Imprimir</button>'+
       '</div>';
     });
     html += '</div>';
     body.innerHTML = html;
 
-    // Gera QR para cada tear
     BASE_TEARES.forEach(function(d, i) {
-      var url = baseUrl + '?tear='+d.tear;
+      var url    = baseUrl + '?tear=' + d.tear;
       var canvas = document.getElementById('qr-canvas-'+i);
-      if (canvas && typeof QRCode !== 'undefined') {
-        QRCode.toCanvas(canvas, url, { width:120, margin:1, color:{dark:'#000000',light:'#ffffff'} }, function(err){
-          if (err) console.warn('QR '+d.tear+':', err);
+      if (!canvas) return;
+      try {
+        QRCode.toCanvas(canvas, url, {
+          width: 130, margin: 1,
+          color: { dark: '#000000', light: '#ffffff' }
+        }, function(err) {
+          if (err) {
+            canvas.style.display = 'none';
+            var fb = document.createElement('div');
+            fb.style.cssText = 'background:#fff;padding:6px;border-radius:4px;font-size:.5rem;word-break:break-all;color:#000;width:120px';
+            fb.textContent = url;
+            canvas.parentNode.insertBefore(fb, canvas);
+          }
         });
-      } else if (canvas) {
-        // Fallback: texto com URL
+      } catch(e) {
         canvas.style.display = 'none';
-        canvas.insertAdjacentHTML('afterend','<div style="font-size:.55rem;color:var(--muted);word-break:break-all">'+url+'</div>');
       }
     });
-  }, 100);
-}
+  }
 
+  if (typeof QRCode !== 'undefined') {
+    setTimeout(gerarQRs, 100);
+  } else {
+    // Carrega a lib dinamicamente
+    var script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js';
+    script.onload = function() { setTimeout(gerarQRs, 100); };
+    script.onerror = function() {
+      body.innerHTML = '<div class="empty-state"><p>Erro ao carregar biblioteca QR. Verifique sua conexao com a internet.</p></div>';
+    };
+    document.head.appendChild(script);
+  }
+}
 function fecharQRCodes() {
   var modal = document.getElementById('modal-qr');
   if (modal) modal.classList.remove('open');
+}
+
+function imprimirQRIndividual(i) {
+  var card = document.getElementById('qr-card-'+i);
+  if (!card) return;
+  var d = BASE_TEARES[i];
+  var canvas = document.getElementById('qr-canvas-'+i);
+  var imgData = canvas ? canvas.toDataURL('image/png') : '';
+
+  var win = window.open('', '_blank', 'width=400,height=500');
+  win.document.write('<!DOCTYPE html><html><head><title>QR Tear '+d.tear+'</title>'+
+    '<style>body{font-family:Arial,sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;background:#fff}'+
+    '.etiqueta{border:2px solid #000;border-radius:8px;padding:16px;text-align:center;width:200px}'+
+    'img{width:160px;height:160px;display:block;margin:0 auto 8px}'+
+    '.num{font-size:1.4rem;font-weight:900;letter-spacing:.05em}'+
+    '.modelo{font-size:.7rem;color:#444;margin-top:4px;line-height:1.4}'+
+    '@media print{body{margin:0}}</style>'+
+    '</head><body><div class="etiqueta">'+
+    (imgData?'<img src="'+imgData+'">':'')+
+    '<div class="num">TEAR '+d.tear+'</div>'+
+    '<div class="modelo">'+d.modelo+'</div>'+
+    '</div></body></html>');
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 400);
+}
+
+function imprimirQRCodes() {
+  // Coleta imagens de todos os canvas e abre janela de impressao
+  var win = window.open('',"_blank","width=900,height=700");
+  var cards = '';
+  BASE_TEARES.forEach(function(d, i) {
+    var canvas = document.getElementById('qr-canvas-'+i);
+    var imgData = canvas ? canvas.toDataURL('image/png') : '';
+    cards += '<div class="card">'+
+      (imgData?'<img src="'+imgData+'">':'<div style="width:120px;height:120px;border:1px solid #ccc;margin:0 auto"></div>')+
+      '<div class="num">TEAR '+d.tear+'</div>'+
+      '<div class="modelo">'+d.modelo+'</div>'+
+    '</div>';
+  });
+  win.document.write('<!DOCTYPE html><html><head><title>QR Codes Teares</title>'+
+    '<style>body{font-family:Arial,sans-serif;margin:12px}'+
+    '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}'+
+    '.card{border:1px solid #ccc;border-radius:6px;padding:10px;text-align:center;break-inside:avoid}'+
+    'img{width:120px;height:120px;display:block;margin:0 auto 6px}'+
+    '.num{font-weight:900;font-size:1rem}'+
+    '.modelo{font-size:.65rem;color:#555;margin-top:3px}'+
+    'h2{font-family:Arial,sans-serif;margin-bottom:12px;font-size:1rem}'+
+    '@media print{.no-print{display:none}}</style>'+
+    '</head><body>'+
+    '<h2>QR Codes — Manutencao Preventiva</h2>'+
+    '<div class="grid">'+cards+'</div>'+
+    '</body></html>');
+  win.document.close();
+  setTimeout(function(){ win.print(); }, 600);
 }
 
 function imprimirQRCodes() {
