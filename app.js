@@ -1148,20 +1148,6 @@ async function renderPecasUsadas() {
   }
 }
 // Dashboard tab switcher
-function switchDashTab(tab, btn) {
-  document.querySelectorAll('.dash-tab').forEach(function(b){ b.classList.remove('active'); });
-  if (btn) btn.classList.add('active');
-  var tl = document.getElementById('dash-timeline');
-  var pc = document.getElementById('dash-pecas');
-  if (tab === 'timeline') {
-    if (tl) tl.style.display = '';
-    if (pc) pc.style.display = 'none';
-  } else {
-    if (tl) tl.style.display = 'none';
-    if (pc) pc.style.display = '';
-  }
-}
-
 // =============================================================================
 //  GERENCIAR TEARES (Admin only)
 //  Salvo em: /empresa/mpdoptex/config/teares
@@ -1493,6 +1479,11 @@ function abrirQRCodes() {
 }
 
 // Gera QR Code via Google Charts API (sem biblioteca externa)
+function _qrImgErr(img) {
+  img.style.display = 'none';
+  var fb = img.nextSibling;
+  if (fb) fb.style.display = 'block';
+}
 function _qrUrl(text) {
   return 'https://api.qrserver.com/v1/create-qr-code/?size=130x130&margin=4&data=' + encodeURIComponent(text);
 }
@@ -1505,7 +1496,7 @@ function _renderQRGrid(body) {
     html += '<div class="qr-card" id="qr-card-' + i + '">' +
       '<img src="' + _qrUrl(url) + '" class="qr-canvas" width="130" height="130" ' +
         'alt="QR Tear ' + d.tear + '" ' +
-        'onerror="this.style.display='none';this.nextSibling.style.display='block'">' +
+        'onerror="_qrImgErr(this)">' +
       '<div style="display:none;background:#fff;padding:6px;border-radius:4px;font-size:.5rem;word-break:break-all;color:#000;width:120px">' + url + '</div>' +
       '<div class="qr-tear-num">Tear ' + d.tear + '</div>' +
       '<div class="qr-modelo">' + d.modelo + '</div>' +
@@ -1542,36 +1533,6 @@ function imprimirQRIndividual(i) {
     '<div class="num">TEAR '+d.tear+'</div>'+
     '<div class="mod">'+d.modelo+'</div>'+
     '</div></body></html>');
-  win.document.close();
-}
-
-function imprimirQRCodes() {
-  var win = window.open('', '_blank', 'width=900,height=700');
-  var baseUrl = window.location.origin + window.location.pathname.replace(/\/+$/, '');
-  var cards = '';
-  BASE_TEARES.forEach(function(d) {
-    var url   = baseUrl + '?tear=' + d.tear;
-    var qrSrc = _qrUrl(url);
-    cards += '<div class="card">'+
-      '<img src="'+qrSrc+'">'+
-      '<div class="num">TEAR '+d.tear+'</div>'+
-      '<div class="mod">'+d.modelo+'</div>'+
-    '</div>';
-  });
-  win.document.write('<!DOCTYPE html><html><head><title>QR Codes — Teares</title>'+
-    '<style>'+
-    'body{font-family:Arial,sans-serif;margin:12px}'+
-    'h2{font-size:1rem;margin-bottom:12px}'+
-    '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}'+
-    '.card{border:1px solid #bbb;border-radius:6px;padding:10px;text-align:center;break-inside:avoid}'+
-    'img{width:120px;height:120px;display:block;margin:0 auto 6px}'+
-    '.num{font-weight:900;font-size:1rem}'+
-    '.mod{font-size:.62rem;color:#555;margin-top:2px;line-height:1.3}'+
-    '@media print{button{display:none}}'+
-    '</style></head><body>'+
-    '<h2>QR Codes — Manutencao Preventiva &nbsp; <button onclick="window.print()">&#128438; Imprimir</button></h2>'+
-    '<div class="grid">'+cards+'</div>'+
-    '</body></html>');
   win.document.close();
 }
 
