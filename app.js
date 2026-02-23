@@ -1537,7 +1537,52 @@ function imprimirQRIndividual(i) {
 }
 
 function imprimirQRCodes() {
-  window.print();
+  var baseUrl = window.location.origin + window.location.pathname.replace(/[/]+$/, '');
+  var cards = '';
+  BASE_TEARES.forEach(function(d) {
+    var url   = baseUrl + '?tear=' + d.tear;
+    var qrSrc = _qrUrl(url);
+    cards += '<div class="card">' +
+      '<img src="' + qrSrc + '">' +
+      '<div class="num">TEAR ' + d.tear + '</div>' +
+      '<div class="mod">' + d.modelo + '</div>' +
+    '</div>';
+  });
+
+  var html = '<!DOCTYPE html><html><head><title>QR Codes Teares</title>' +
+    '<style>' +
+    'body{font-family:Arial,sans-serif;margin:16px;background:#fff;color:#000}' +
+    'h2{font-size:1rem;margin-bottom:12px}' +
+    '.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}' +
+    '.card{border:1px solid #bbb;border-radius:6px;padding:10px;text-align:center;break-inside:avoid}' +
+    'img{width:120px;height:120px;display:block;margin:0 auto 6px}' +
+    '.num{font-weight:900;font-size:1rem}' +
+    '.mod{font-size:.62rem;color:#555;margin-top:2px;line-height:1.3}' +
+    '@media print{.no-print{display:none!important}}' +
+    '</style></head><body>' +
+    '<div class="no-print" style="margin-bottom:12px">' +
+      '<strong>QR Codes — Manutencao Preventiva</strong> &nbsp;' +
+      '<button onclick="window.print()" style="padding:5px 14px;cursor:pointer">Imprimir / PDF</button>' +
+    '</div>' +
+    '<div class="grid">' + cards + '</div>' +
+    '</body></html>';
+
+  // Abre em iframe overlay (sem popup bloqueado)
+  var old = document.getElementById('qr-print-frame');
+  if (old) old.remove();
+  var frame = document.createElement('iframe');
+  frame.id = 'qr-print-frame';
+  frame.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff';
+  document.body.appendChild(frame);
+  frame.contentDocument.open();
+  frame.contentDocument.write(html);
+  frame.contentDocument.close();
+  // Botao fechar
+  var btn = frame.contentDocument.createElement('button');
+  btn.textContent = 'X Fechar';
+  btn.style.cssText = 'position:fixed;top:12px;right:12px;padding:6px 14px;cursor:pointer;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:.85rem;z-index:999';
+  btn.onclick = function(){ document.getElementById('qr-print-frame').remove(); };
+  frame.contentDocument.body.appendChild(btn);
 }
 
 // Verifica se URL tem ?tear=N ao carregar (QR scan)
