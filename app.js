@@ -16,33 +16,33 @@ var FIREBASE_CONFIG = {
 var firebaseConfig = FIREBASE_CONFIG;
 
 var BASE_TEARES = [
-  { tear:1,  modelo:'ORIZIO 32" MONO',    rpm:28, setup:1600000, realizado:42996173 },
-  { tear:2,  modelo:'ORIZIO 32" MONO',    rpm:28, setup:1600000, realizado:71637940 },
-  { tear:3,  modelo:'ORIZIO 32" MONO',    rpm:28, setup:1600000, realizado:68689056 },
-  { tear:4,  modelo:'ORIZIO 32" MONO',    rpm:28, setup:1600000, realizado:65715051 },
-  { tear:5,  modelo:'ORIZIO 32" MONO',    rpm:28, setup:1600000, realizado:35519077 },
-  { tear:6,  modelo:'ORIZIO 32" MONO',    rpm:28, setup:1600000, realizado:57082464 },
-  { tear:7,  modelo:'ORIZIO 32" MONO',    rpm:28, setup:1600000, realizado:59517445 },
-  { tear:8,  modelo:'ORIZIO 30" RIBANA',  rpm:18, setup:1800000, realizado:22558180 },
-  { tear:9,  modelo:'ORIZIO 42" MONO',    rpm:28, setup:1800000, realizado:66741244 },
-  { tear:10, modelo:'ORIZIO 42" MONO',    rpm:28, setup:1800000, realizado:74221195 },
-  { tear:11, modelo:'ORIZIO 42" MONO',    rpm:28, setup:1800000, realizado:5916785  },
-  { tear:12, modelo:'MAYER 30" DUPLA',    rpm:25, setup:0,       realizado:0        },
-  { tear:13, modelo:'MAYER 30" DUPLA',    rpm:25, setup:0,       realizado:0        },
-  { tear:14, modelo:'ORIZIO 42" MONO',    rpm:28, setup:1800000, realizado:12074407 },
-  { tear:15, modelo:'ORIZIO 42" MONO',    rpm:28, setup:1800000, realizado:61891468 },
-  { tear:16, modelo:'ORIZIO 42" MONO',    rpm:28, setup:1800000, realizado:63149078 },
-  { tear:17, modelo:'ORIZIO 30" RIBANA',  rpm:18, setup:1800000, realizado:54169508 },
-  { tear:18, modelo:'ORIZIO 42" MONO',    rpm:28, setup:1800000, realizado:56957857 },
-  { tear:19, modelo:'ORIZIO 42" MONO',    rpm:28, setup:1800000, realizado:53275086 },
-  { tear:20, modelo:'ORIZIO 30" DUPLA',   rpm:25, setup:1800000, realizado:null     },
-  { tear:21, modelo:'ORIZIO 30" DUPLA',   rpm:25, setup:1800000, realizado:null     },
-  { tear:22, modelo:'LEADSFON 30" DUPLA', rpm:25, setup:1800000, realizado:null     },
-  { tear:23, modelo:'LEADSFON 30" DUPLA', rpm:25, setup:1800000, realizado:null     },
-  { tear:24, modelo:'LEADSFON 30" DUPLA', rpm:25, setup:1800000, realizado:null     },
-  { tear:25, modelo:'LEADSFON 30" DUPLA', rpm:25, setup:1800000, realizado:null     },
-  { tear:26, modelo:'LEADSFON 30" DUPLA', rpm:25, setup:1800000, realizado:null     },
-  { tear:27, modelo:'LEADSFON 30" DUPLA', rpm:25, setup:1800000, realizado:null     }
+  { tear:1,  modelo:'ORIZIO 32" MONO',   rpm:28, setup:1600000, realizado:44549291 },
+  { tear:2,  modelo:'ORIZIO 32" MONO',   rpm:28, setup:1600000, realizado:73387384 },
+  { tear:3,  modelo:'ORIZIO 32" MONO',   rpm:28, setup:1600000, realizado:70720455 },
+  { tear:4,  modelo:'ORIZIO 32" MONO',   rpm:28, setup:1600000, realizado:67412719 },
+  { tear:5,  modelo:'ORIZIO 32" MONO',   rpm:28, setup:1600000, realizado:39477421 },
+  { tear:6,  modelo:'ORIZIO 32" MONO',   rpm:28, setup:1600000, realizado:59023814 },
+  { tear:7,  modelo:'ORIZIO 32" MONO',   rpm:28, setup:1600000, realizado:62379764 },
+  { tear:8,  modelo:'ORIZIO 30" RIBANA', rpm:18, setup:1800000, realizado:23718297 },
+  { tear:9,  modelo:'ORIZIO 42" MONO',   rpm:28, setup:1800000, realizado:68330651 },
+  { tear:10, modelo:'ORIZIO 42" MONO',   rpm:28, setup:1800000, realizado:75376480 },
+  { tear:11, modelo:'ORIZIO 42" MONO',   rpm:28, setup:1800000, realizado:76636700 },
+  { tear:12, modelo:'MAYER D4 34',       rpm:25, setup:0,       realizado:0        },
+  { tear:13, modelo:'MAYER D4 34',       rpm:25, setup:0,       realizado:0        },
+  { tear:14, modelo:'ORIZIO 42" MONO',   rpm:28, setup:1800000, realizado:13140009 },
+  { tear:15, modelo:'ORIZIO 42" MONO',   rpm:28, setup:1800000, realizado:61891468 },
+  { tear:16, modelo:'ORIZIO 42" MONO',   rpm:28, setup:1800000, realizado:64238816 },
+  { tear:17, modelo:'ORIZIO 30" RIBANA', rpm:18, setup:1800000, realizado:55505199 },
+  { tear:18, modelo:'ORIZIO 42" MONO',   rpm:28, setup:1800000, realizado:58552089 },
+  { tear:19, modelo:'ORIZIO 42" MONO',   rpm:28, setup:1800000, realizado:53275086 },
+  { tear:20, modelo:'ORIZIO CIC 34',     rpm:25, setup:1800000, realizado:null     },
+  { tear:21, modelo:'ORIZIO CIC 34',     rpm:25, setup:1800000, realizado:null     },
+  { tear:22, modelo:'LEADSFON 34',       rpm:25, setup:1800000, realizado:null     },
+  { tear:23, modelo:'LEADSFON 34',       rpm:25, setup:1800000, realizado:null     },
+  { tear:24, modelo:'LEADSFON 34',       rpm:25, setup:1800000, realizado:null     },
+  { tear:25, modelo:'LEADSFON 34',       rpm:25, setup:1800000, realizado:null     },
+  { tear:26, modelo:'LEADSFON 34',       rpm:25, setup:1800000, realizado:null     },
+  { tear:27, modelo:'LEADSFON 34',       rpm:25, setup:1800000, realizado:null     }
 ];
 
 var CHECKLIST_ITENS = [
@@ -243,7 +243,12 @@ async function doReset() {
 }
 
 async function doLogout() {
-  Object.keys(manutsAtivas).forEach(function(k){ clearInterval(manutsAtivas[k].timerInterval); });
+  // Remove manutenções locais ativas do Firestore ao sair
+  var localKeys = Object.keys(manutsAtivas).filter(function(k){ return !manutsAtivas[k]._remote; });
+  for (var k of localKeys) {
+    clearInterval(manutsAtivas[k].timerInterval);
+    await syncFinalizarManut(parseInt(k));
+  }
   manutsAtivas = {};
   if (auth) await auth.signOut();
   else { currentUser = null; showScreen('screen-login'); mostrarLogin(); }
@@ -272,8 +277,10 @@ async function onLogin(user) {
   await carregarRole(user.uid);
   buildTable();
   listenRealtime();
+  listenManutsAtivas();    // escuta manutenções ativas de outros dispositivos
+  await carregarManutsAtivas(); // carrega manutenções já em andamento
   scheduleNotifications();
-  processarQRScan();  // abre checklist se veio de QR Code
+  processarQRScan();
 }
 
 // =============================================================================
@@ -533,6 +540,9 @@ function iniciarManutencao(i) {
     }
   }, 1000);
 
+  // Sincroniza com outros dispositivos
+  syncIniciarManut(i);
+
   showToast('Manutencao iniciada — Tear '+d.tear);
   abrirChecklist(i);
 }
@@ -663,6 +673,9 @@ async function finalizarManutencao() {
   // Atualiza data na linha
   var dEl  = document.getElementById('d-'+i);
   if (dEl) { dEl.value = new Date().toISOString().slice(0,10); onChange(i); }
+
+  // Sincroniza fim com outros dispositivos
+  await syncFinalizarManut(i);
 
   // Fecha modal e limpa estado
   fecharChecklist();
@@ -1779,3 +1792,139 @@ abrirDashboard = async function() {
   var tl=document.getElementById('dash-timeline'); if(tl) tl.style.display='';
   renderTimeline();
 };
+
+// =============================================================================
+//  SYNC MANUTENÇÕES ATIVAS — Firestore realtime
+//  Coleção: /empresa/mpdoptex/manutencoes_ativas/{tearIndex}
+//  Documento: { tearIndex, tear, modelo, startTime (ISO), tecnico, deviceId }
+// =============================================================================
+function manuAtivCol() {
+  return db.collection('empresa').doc(EMPRESA_ID).collection('manutencoes_ativas');
+}
+
+// ID único deste dispositivo/sessão (para não reagir às próprias mudanças)
+var _deviceId = 'dev_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+
+// Salva manutenção ativa no Firestore para outros dispositivos verem
+async function syncIniciarManut(i) {
+  if (!db || !currentUser) return;
+  var d = BASE_TEARES[i];
+  try {
+    await manuAtivCol().doc(String(i)).set({
+      tearIndex:  i,
+      tear:       d.tear,
+      modelo:     d.modelo,
+      startTime:  new Date(manutsAtivas[i].startTime).toISOString(),
+      tecnico:    currentUser.displayName || currentUser.email,
+      deviceId:   _deviceId,
+      ativo:      true
+    });
+  } catch(e) { console.warn('[SyncManut] iniciar:', e.message); }
+}
+
+// Remove manutenção ativa do Firestore ao finalizar/cancelar
+async function syncFinalizarManut(i) {
+  if (!db || !currentUser) return;
+  try {
+    await manuAtivCol().doc(String(i)).delete();
+  } catch(e) { console.warn('[SyncManut] finalizar:', e.message); }
+}
+
+// Escuta manutenções ativas de outros dispositivos em tempo real
+function listenManutsAtivas() {
+  if (!db || !currentUser) return;
+  manuAtivCol().onSnapshot(function(snap) {
+    snap.docChanges().forEach(function(ch) {
+      var idx  = parseInt(ch.doc.id);
+      var data = ch.doc.data();
+
+      if (ch.type === 'removed') {
+        // Outro dispositivo finalizou — remove indicador visual se não é local
+        if (!manutsAtivas[idx] || manutsAtivas[idx]._remote) {
+          _limparManutRemota(idx);
+        }
+        return;
+      }
+
+      // Ignora mudanças do próprio dispositivo
+      if (data.deviceId === _deviceId) return;
+
+      if ((ch.type === 'added' || ch.type === 'modified') && data.ativo) {
+        // Outro dispositivo iniciou — mostra indicador visual
+        if (!manutsAtivas[idx]) {
+          var startMs = new Date(data.startTime).getTime();
+          _mostrarManutRemota(idx, startMs, data.tecnico);
+        }
+      }
+    });
+  }, function(err) { console.warn('[SyncManut] listen:', err.message); });
+}
+
+// Mostra indicador visual de manutenção iniciada em outro dispositivo
+function _mostrarManutRemota(i, startMs, tecnico) {
+  var d = BASE_TEARES[i];
+  if (!d) return;
+
+  // Cria entrada em manutsAtivas marcada como remota
+  manutsAtivas[i] = {
+    tearIndex:     i,
+    startTime:     startMs,
+    timerInterval: null,
+    checklist:     {},
+    obs:           '',
+    _remote:       true,
+    _tecnico:      tecnico
+  };
+
+  var btnW = document.getElementById('btn-wrench-'+i);
+  var rt   = document.getElementById('rt-'+i);
+  var tr   = document.getElementById('tr-'+i);
+  if (btnW) btnW.classList.add('active');
+  if (rt)   rt.style.display = 'inline';
+  if (tr)   tr.style.background = 'rgba(249,115,22,0.06)';
+
+  // Timer local sincronizado com o startTime remoto
+  manutsAtivas[i].timerInterval = setInterval(function() {
+    var manut = manutsAtivas[i]; if (!manut) return;
+    var elapsed = Math.floor((Date.now() - manut.startTime) / 1000);
+    var h = Math.floor(elapsed/3600), m = Math.floor((elapsed%3600)/60), s = elapsed%60;
+    var rtEl = document.getElementById('rt-'+i);
+    if (rtEl) rtEl.textContent = (h>0?pad(h)+':':'')+pad(m)+':'+pad(s);
+  }, 1000);
+
+  // Toast informativo
+  showToast('Tear '+d.tear+' em manutencao por '+tecnico+' (outro dispositivo)');
+}
+
+function _limparManutRemota(i) {
+  var manut = manutsAtivas[i];
+  if (!manut) return;
+  clearInterval(manut.timerInterval);
+  delete manutsAtivas[i];
+  var btnW = document.getElementById('btn-wrench-'+i);
+  var rt   = document.getElementById('rt-'+i);
+  var btnF = document.getElementById('btn-finish-'+i);
+  var tr   = document.getElementById('tr-'+i);
+  if (btnW) btnW.classList.remove('active');
+  if (rt)   { rt.style.display = 'none'; rt.textContent = '00:00'; }
+  if (btnF) btnF.style.display = 'none';
+  if (tr)   tr.style.background = '';
+  showToast('Manutencao do Tear '+(BASE_TEARES[i]?BASE_TEARES[i].tear:i)+' finalizada em outro dispositivo.');
+}
+
+// Ao carregar, busca manutenções já em andamento (iniciadas antes deste login)
+async function carregarManutsAtivas() {
+  if (!db || !currentUser) return;
+  try {
+    var snap = await manuAtivCol().get();
+    snap.forEach(function(doc) {
+      var data = doc.data();
+      var idx  = parseInt(doc.id);
+      if (!data.ativo) return;
+      if (data.deviceId === _deviceId) return; // propria sessao
+      if (manutsAtivas[idx]) return; // ja iniciada localmente
+      var startMs = new Date(data.startTime).getTime();
+      _mostrarManutRemota(idx, startMs, data.tecnico);
+    });
+  } catch(e) { console.warn('[SyncManut] carregar:', e.message); }
+}
