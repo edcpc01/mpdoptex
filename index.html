@@ -228,6 +228,39 @@ tbody td{padding:7px 10px;vertical-align:middle}
 
 
 
+
+/* ── CARGA AGULHAS/PLATINAS ── */
+.modal-carga{padding:14px 18px;border-top:1px solid var(--border);background:rgba(234,179,8,.04)}
+.carga-title{display:flex;align-items:center;gap:7px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;color:var(--warn);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+.carga-hint{font-size:.72rem;color:var(--muted);margin-bottom:12px;line-height:1.5}
+.carga-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.carga-grid{grid-template-columns:1fr}}
+.carga-item{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.carga-lbl{display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:.82rem;color:var(--text);line-height:1.4}
+.carga-lbl input[type=checkbox]{width:16px;height:16px;margin-top:2px;accent-color:var(--warn);flex-shrink:0;cursor:pointer}
+.carga-kg-wrap{margin-top:10px;display:flex;flex-direction:column;gap:4px}
+.carga-kg-inp{background:var(--s3);border:1px solid var(--warn);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:1rem;font-weight:600;padding:8px 12px;width:100%;transition:border .15s}
+.carga-kg-inp:focus{outline:none;border-color:#f59e0b}
+.carga-kg-unit{font-size:.68rem;color:var(--muted)}
+
+/* ── DASHBOARD PRODUCAO ── */
+.prod-header{padding:10px 18px;border-bottom:1px solid var(--border);font-size:.75rem;color:var(--muted);display:flex;justify-content:space-between;align-items:center}
+.prod-row{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid rgba(42,53,80,.4)}
+.prod-pos{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;width:26px;text-align:center;flex-shrink:0}
+.prod-info{flex:1;min-width:0}
+.prod-tear{font-size:.82rem;font-weight:600;color:var(--text);margin-bottom:3px}
+.prod-bar-wrap{height:5px;background:var(--s3);border-radius:4px;overflow:hidden;margin-bottom:5px}
+.prod-bar{height:5px;border-radius:4px}
+.prod-meta{display:flex;gap:14px;flex-wrap:wrap;font-size:.7rem;color:var(--muted)}
+.prod-meta strong{color:var(--text)}
+.prod-kg{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.2rem;text-align:right;flex-shrink:0}
+.prod-kg-lbl{font-size:.58rem;color:var(--muted);text-align:right}
+.prod-chart-wrap{padding:16px 18px}
+.prod-chart-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:10px}
+.prod-points{position:relative;height:90px;border-bottom:1px solid var(--border);border-left:1px solid var(--border);margin:0 8px 20px}
+.prod-point{position:absolute;width:8px;height:8px;border-radius:50%;transform:translate(-50%,50%);cursor:default}
+.prod-point-lbl{position:absolute;font-size:.55rem;color:var(--muted);transform:translateX(-50%);bottom:-16px;white-space:nowrap}
+
 /* ── GRAFICOS ── */
 .chart-wrap{margin-bottom:24px}
 .chart-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:12px}
@@ -558,6 +591,38 @@ tbody td{padding:7px 10px;vertical-align:middle}
       <label>Observacoes gerais da manutencao</label>
       <textarea id="cl-obs" placeholder="Anote aqui qualquer observacao, peca trocada, problema encontrado..."></textarea>
     </div>
+
+    <!-- SECAO CARGA DE AGULHAS / PLATINAS -->
+    <div class="modal-carga" id="cl-carga-section">
+      <div class="carga-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        Registro de Producao com Carga Anterior
+      </div>
+      <div class="carga-hint">Preencha abaixo apenas se houve troca completa de agulhas ou platinas nesta manutencao.</div>
+      <div class="carga-grid">
+        <div class="carga-item">
+          <label class="carga-lbl">
+            <input type="checkbox" id="cl-agulha-trocada" onchange="toggleCargaKg('agulha')">
+            <span>Carga completa de <strong>Agulhas</strong> trocada</span>
+          </label>
+          <div class="carga-kg-wrap" id="carga-agulha-kg-wrap" style="display:none">
+            <input type="number" id="cl-agulha-kg" class="carga-kg-inp" placeholder="kg produzidos" min="0" step="0.1">
+            <span class="carga-kg-unit">kg de malha produzidos com esta carga</span>
+          </div>
+        </div>
+        <div class="carga-item">
+          <label class="carga-lbl">
+            <input type="checkbox" id="cl-platina-trocada" onchange="toggleCargaKg('platina')">
+            <span>Carga completa de <strong>Platinas</strong> trocada</span>
+          </label>
+          <div class="carga-kg-wrap" id="carga-platina-kg-wrap" style="display:none">
+            <input type="number" id="cl-platina-kg" class="carga-kg-inp" placeholder="kg produzidos" min="0" step="0.1">
+            <span class="carga-kg-unit">kg de malha produzidos com esta carga</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn-big btn-big-cancel" onclick="fecharChecklist()">Minimizar</button>
       <button class="btn-big btn-big-ok" onclick="finalizarManutencao()">
@@ -602,12 +667,14 @@ tbody td{padding:7px 10px;vertical-align:middle}
       <button class="dash-tab" onclick="switchDashTab('graficos',this)">&#128202; Graficos</button>
       <button class="dash-tab" onclick="switchDashTab('tecnicos',this)">&#128100; Tecnicos</button>
       <button class="dash-tab" onclick="switchDashTab('pecas',this)">&#128295; Pecas</button>
+      <button class="dash-tab" onclick="switchDashTab('producao',this)">&#9878; Producao</button>
     </div>
     <div class="modal-body" style="padding:0">
       <div id="dash-timeline" style="padding:0"></div>
       <div id="dash-graficos" style="display:none;padding:16px"></div>
       <div id="dash-tecnicos" style="display:none;padding:0"></div>
       <div id="dash-pecas" style="display:none;padding:0"></div>
+      <div id="dash-producao" style="display:none;padding:0"></div>
     </div>
   </div>
 </div>
