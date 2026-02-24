@@ -1651,14 +1651,23 @@ function processarQRScan() {
 // =============================================================================
 //  RELATORIO PDF MENSAL
 // =============================================================================
+// =============================================================================
+//  RELATORIO PDF — intervalo de datas + KPIs globais
+// =============================================================================
 function abrirRelatorioPDF() {
   var modal = document.getElementById('modal-pdf');
   if (modal) modal.classList.add('open');
-  // Define mes atual como default
+  // Define período padrão: início do mês até hoje
   var hoje = new Date();
-  var mesInput = document.getElementById('pdf-mes');
-  if (mesInput) mesInput.value = hoje.getFullYear()+'-'+pad(hoje.getMonth()+1);
-  document.getElementById('pdf-preview').innerHTML = '<div class="empty-state"><p>Selecione o mes e clique em "Gerar PDF".</p></div>';
+  var ini  = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  var iniStr = ini.toISOString().slice(0,10);
+  var fimStr = hoje.toISOString().slice(0,10);
+  var inEl = document.getElementById('pdf-data-ini');
+  var fmEl = document.getElementById('pdf-data-fim');
+  if (inEl) inEl.value = iniStr;
+  if (fmEl) fmEl.value = fimStr;
+  document.getElementById('pdf-preview').innerHTML =
+    '<div class="empty-state"><p>Selecione o periodo e clique em "Gerar Relatorio".</p></div>';
 }
 
 function fecharPDF() {
@@ -1667,48 +1676,50 @@ function fecharPDF() {
 }
 
 async function gerarPDF() {
-  var mesInput = document.getElementById('pdf-mes');
-  if (!mesInput || !mesInput.value) { showToast('Selecione o mes.'); return; }
-  var [ano, mes] = mesInput.value.split('-').map(Number);
+  var iniEl = document.getElementById('pdf-data-ini');
+  var fimEl = document.getElementById('pdf-data-fim');
+  if (!iniEl || !iniEl.value || !fimEl || !fimEl.value) { showToast('Selecione o periodo.'); return; }
+  var dataIni = new Date(iniEl.value + 'T00:00:00');
+  var dataFim = new Date(fimEl.value + 'T23:59:59');
+  if (dataIni > dataFim) { showToast('Data inicial maior que a final.'); return; }
   var preview = document.getElementById('pdf-preview');
   preview.innerHTML = '<div class="empty-state"><p>Carregando dados...</p></div>';
-
   if (!db || !currentUser) { preview.innerHTML = '<div class="empty-state"><p>Login necessario.</p></div>'; return; }
 
   try {
     var snap;
-    try { snap = await histCol().orderBy('inicio','desc').limit(500).get(); }
-    catch(e) { snap = await histCol().limit(500).get(); }
+    try { snap = await histCol().orderBy('inicio','desc').limit(1000).get(); }
+    catch(e) { snap = await histCol().limit(1000).get(); }
 
-    // Filtra pelo mes selecionado
+    // Filtra pelo intervalo
     var registros = [];
     snap.forEach(function(doc) {
       var r = doc.data();
       var d = new Date(r.inicio);
-      if (d.getFullYear()===ano && d.getMonth()+1===mes) registros.push(r);
+      if (d >= dataIni && d <= dataFim) registros.push(r);
     });
 
-    var nomeMes = new Date(ano, mes-1, 1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    var periodoStr = dataIni.toLocaleDateString('pt-BR') + ' a ' + dataFim.toLocaleDateString('pt-BR');
 
-    // KPIs
-    var totalManut = registros.length;
-    var durTotal   = registros.reduce(function(s,r){ return s+(r.duracaoSeg||0); },0);
-    var durMedia   = totalManut>0 ? Math.round(durTotal/totalManut) : 0;
-    var hm=Math.floor(durMedia/3600), mm2=Math.floor((durMedia%3600)/60);
-    var durStr = hm>0?hm+'h '+pad(mm2)+'min':mm2+'min';
+    // ── KPIs ──
+    var totalManut  = registros.length;
+    var durTotal    = registros.reduce(function(s,r){ return s+(r.duracaoSeg||0); }, 0);
+    var durMedia    = totalManut > 0 ? Math.round(durTotal/totalManut) : 0;
+    var hm=Math.floor(durMedia/3600), mm=Math.floor((durMedia%3600)/60);
+    var durStr      = hm>0 ? hm+'h '+pad(mm)+'min' : mm+'min';
 
-    // Pecas trocadas no mes
+    // Peças trocadas
     var pecasContador = {};
-    var totalPecas = 0;
+    var totalPecasUnid = 0;
     registros.forEach(function(r) {
       if (!r.checklist) return;
       Object.keys(r.checklist).forEach(function(idx) {
         var item = r.checklist[idx];
-        if (!item.troca) return;
+        if (!item || !item.troca) return;
         var nome = CHECKLIST_ITENS[parseInt(idx)] || 'Item '+idx;
         var qtde = parseFloat(item.qtde)||1;
-        pecasContador[nome] = (pecasContador[nome]||0)+qtde;
-        totalPecas += qtde;
+        pecasContador[nome] = (pecasContador[nome]||0) + qtde;
+        totalPecasUnid += qtde;
       });
     });
     var topPecas = Object.keys(pecasContador)
@@ -1716,32 +1727,59 @@ async function gerarPDF() {
       .sort(function(a,b){ return b.qtde-a.qtde; })
       .slice(0,10);
 
-    // Status atual dos teares
+    // Kg por carga de agulhas / platinas por tear
+    var cargasPorTear = {};
+    registros.forEach(function(r) {
+      var k = r.tear;
+      if (!cargasPorTear[k]) cargasPorTear[k] = { tear:k, modelo:r.modelo, agulhas:[], platinas:[] };
+      if (r.cargaAgulha  && r.cargaAgulha.trocada  && r.cargaAgulha.kg  > 0) cargasPorTear[k].agulhas.push(r.cargaAgulha.kg);
+      if (r.cargaPlatina && r.cargaPlatina.trocada && r.cargaPlatina.kg > 0) cargasPorTear[k].platinas.push(r.cargaPlatina.kg);
+    });
+    var tearesComCarga = Object.values(cargasPorTear)
+      .filter(function(t){ return t.agulhas.length||t.platinas.length; })
+      .sort(function(a,b){ return a.tear-b.tear; });
+
+    var mediaGlobalAg = 0, mediaGlobalPl = 0, nAg=0, nPl=0;
+    Object.values(cargasPorTear).forEach(function(t){
+      t.agulhas.forEach(function(v){ mediaGlobalAg+=v; nAg++; });
+      t.platinas.forEach(function(v){ mediaGlobalPl+=v; nPl++; });
+    });
+    mediaGlobalAg = nAg ? Math.round(mediaGlobalAg/nAg) : 0;
+    mediaGlobalPl = nPl ? Math.round(mediaGlobalPl/nPl) : 0;
+
+    // Status atual
     var venc=0, atenc=0, emdia=0;
     BASE_TEARES.forEach(function(d,i){
       var t=((document.getElementById('st-'+i)||{}).textContent||'').trim();
       if(t.indexOf('Vencido')>=0) venc++;
-      else if(t.indexOf('Atencao')>=0) atenc++;
+      else if(t.indexOf('Atencao')>=0||t.indexOf('Aten')>=0) atenc++;
       else if(t.indexOf('Em dia')>=0) emdia++;
     });
 
-    // Monta HTML do relatorio
+    // ── MONTA HTML ──
     var html = '<div style="padding:16px" id="pdf-conteudo">';
+
+    // Cabeçalho
     html += '<div style="text-align:center;margin-bottom:16px;padding-bottom:12px;border-bottom:2px solid var(--accent)">'+
       '<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:800;font-size:1.4rem;color:var(--text)">MANUTENCAO PREVENTIVA</div>'+
-      '<div style="color:var(--accent);font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:1rem;text-transform:uppercase">Relatorio Mensal &mdash; '+nomeMes+'</div>'+
+      '<div style="color:var(--accent);font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:.95rem;text-transform:uppercase">Relatorio do Periodo: '+periodoStr+'</div>'+
       '<div style="font-size:.7rem;color:var(--muted);margin-top:4px">Gerado em '+new Date().toLocaleDateString('pt-BR')+' por '+(currentUser.displayName||currentUser.email)+'</div>'+
     '</div>';
 
-    html += '<div class="pdf-section"><div class="pdf-section-title">Resumo do Mes</div>'+
-    '<div class="pdf-kpi-row">'+
+    // KPIs principais
+    html += '<div class="pdf-section"><div class="pdf-section-title">KPIs do Periodo</div>'+
+    '<div class="pdf-kpi-row-4">'+
       '<div class="pdf-kpi"><div class="pdf-kpi-val">'+totalManut+'</div><div class="pdf-kpi-lbl">Manutencoes realizadas</div></div>'+
       '<div class="pdf-kpi"><div class="pdf-kpi-val">'+durStr+'</div><div class="pdf-kpi-lbl">Duracao media</div></div>'+
-      '<div class="pdf-kpi"><div class="pdf-kpi-val">'+totalPecas+'</div><div class="pdf-kpi-lbl">Pecas trocadas</div></div>'+
-      '<div class="pdf-kpi"><div class="pdf-kpi-val" style="color:var(--'+(venc>0?'danger':'ok')+')">'+(venc>0?venc+' venc.':emdia+' OK')+'</div><div class="pdf-kpi-lbl">Status atual teares</div></div>'+
+      '<div class="pdf-kpi"><div class="pdf-kpi-val">'+totalPecasUnid.toLocaleString('pt-BR')+'</div><div class="pdf-kpi-lbl">Pecas trocadas</div></div>'+
+      '<div class="pdf-kpi"><div class="pdf-kpi-val" style="color:var(--'+(venc>0?'danger':'ok')+')">'+(venc>0?venc+' venc.':emdia+' OK')+'</div><div class="pdf-kpi-lbl">Status atual</div></div>'+
+    '</div>'+
+    '<div class="pdf-kpi-row-2">'+
+      '<div class="pdf-kpi"><div class="pdf-kpi-val">'+(mediaGlobalAg>0?mediaGlobalAg.toLocaleString('pt-BR')+' kg':'-')+'</div><div class="pdf-kpi-lbl">Media kg / carga de agulhas ('+nAg+' registros)</div></div>'+
+      '<div class="pdf-kpi"><div class="pdf-kpi-val">'+(mediaGlobalPl>0?mediaGlobalPl.toLocaleString('pt-BR')+' kg':'-')+'</div><div class="pdf-kpi-lbl">Media kg / carga de platinas ('+nPl+' registros)</div></div>'+
     '</div></div>';
 
-    // Status geral
+    // Status geral dos teares
     html += '<div class="pdf-section"><div class="pdf-section-title">Status Atual dos Teares</div>'+
     '<div style="display:flex;gap:20px;font-size:.82rem;padding:8px 0">'+
       '<span style="color:var(--danger)">&#9632; Vencidos: <strong>'+venc+'</strong></span>'+
@@ -1750,43 +1788,235 @@ async function gerarPDF() {
       '<span style="color:var(--muted)">Total: <strong>'+BASE_TEARES.length+'</strong></span>'+
     '</div></div>';
 
-    // Manutencoes realizadas no mes
+    // Manutencoes do período
     if (registros.length) {
-      html += '<div class="pdf-section"><div class="pdf-section-title">Manutencoes Realizadas ('+registros.length+')</div>';
+      html += '<div class="pdf-section"><div class="pdf-section-title">Manutencoes Realizadas no Periodo ('+registros.length+')</div>';
       html += '<table class="pdf-table"><thead><tr><th>Tear</th><th>Modelo</th><th>Data</th><th>Duracao</th><th>Tecnico</th><th>Obs</th></tr></thead><tbody>';
-      registros.sort(function(a,b){ return (a.inicio||'').localeCompare(b.inicio||''); }).forEach(function(r) {
-        var dt = new Date(r.inicio);
-        var dur = r.duracaoSeg||0;
-        var hh=Math.floor(dur/3600),mm3=Math.floor((dur%3600)/60);
-        var dStr = hh>0?hh+'h'+pad(mm3)+'min':mm3+'min';
-        html += '<tr><td><strong>'+r.tear+'</strong></td><td>'+r.modelo+'</td><td>'+dt.toLocaleDateString('pt-BR')+'</td><td>'+dStr+'</td><td>'+(r.tecnico||'-')+'</td><td style="font-size:.7rem;color:var(--muted)">'+(r.obs||'-')+'</td></tr>';
+      registros.slice().sort(function(a,b){ return (a.inicio||'').localeCompare(b.inicio||''); }).forEach(function(r) {
+        var dt=new Date(r.inicio), dur=r.duracaoSeg||0;
+        var hh=Math.floor(dur/3600),mm2=Math.floor((dur%3600)/60);
+        html += '<tr><td><strong>'+r.tear+'</strong></td><td>'+r.modelo+'</td>'+
+          '<td>'+dt.toLocaleDateString('pt-BR')+'</td>'+
+          '<td>'+(hh>0?hh+'h'+pad(mm2)+'min':mm2+'min')+'</td>'+
+          '<td>'+(r.tecnico||'-')+'</td>'+
+          '<td style="font-size:.68rem;color:var(--muted)">'+(r.obs||'-')+'</td></tr>';
       });
       html += '</tbody></table></div>';
-    } else {
-      html += '<div class="pdf-section"><div class="pdf-section-title">Manutencoes Realizadas</div><p style="color:var(--muted);font-size:.8rem">Nenhuma manutencao registrada neste mes.</p></div>';
     }
 
-    // Top pecas trocadas
+    // Kg por carga — tabela
+    if (tearesComCarga.length) {
+      html += '<div class="pdf-section"><div class="pdf-section-title">Producao por Carga — Agulhas e Platinas</div>';
+      html += '<table class="pdf-table"><thead><tr><th>Tear</th><th>Modelo</th><th>Cargas Ag.</th><th>Media Ag. (kg)</th><th>Cargas Pl.</th><th>Media Pl. (kg)</th></tr></thead><tbody>';
+      tearesComCarga.forEach(function(t) {
+        var mAg = t.agulhas.length ? Math.round(t.agulhas.reduce(function(a,b){return a+b;},0)/t.agulhas.length) : '-';
+        var mPl = t.platinas.length ? Math.round(t.platinas.reduce(function(a,b){return a+b;},0)/t.platinas.length) : '-';
+        html += '<tr><td><strong>'+t.tear+'</strong></td><td>'+t.modelo+'</td>'+
+          '<td>'+t.agulhas.length+'</td>'+
+          '<td>'+(mAg!=='-'?mAg.toLocaleString('pt-BR')+' kg':'-')+'</td>'+
+          '<td>'+t.platinas.length+'</td>'+
+          '<td>'+(mPl!=='-'?mPl.toLocaleString('pt-BR')+' kg':'-')+'</td></tr>';
+      });
+      html += '</tbody></table></div>';
+    }
+
+    // Top 10 peças
     if (topPecas.length) {
-      html += '<div class="pdf-section"><div class="pdf-section-title">Pecas Mais Trocadas no Mes</div>';
+      html += '<div class="pdf-section"><div class="pdf-section-title">Top 10 Pecas Mais Trocadas no Periodo</div>';
       html += '<table class="pdf-table"><thead><tr><th>#</th><th>Peca</th><th>Qtde Trocada</th></tr></thead><tbody>';
-      topPecas.forEach(function(p,i){ html += '<tr><td>'+(i+1)+'</td><td>'+p.nome+'</td><td><strong>'+p.qtde+'</strong></td></tr>'; });
+      topPecas.forEach(function(p,i){
+        html += '<tr><td>'+(i+1)+'</td><td>'+p.nome+'</td><td><strong>'+p.qtde.toLocaleString('pt-BR')+'</strong></td></tr>';
+      });
       html += '</tbody></table></div>';
     }
 
     html += '</div>';
-
-    // Botao imprimir
     html += '<div style="padding:0 16px 16px;display:flex;gap:10px">'+
       '<button class="btn-save-teares" onclick="imprimirRelatorio()" style="padding:9px 20px;font-size:.82rem">&#128438; Imprimir / Salvar PDF</button>'+
-      '<span style="font-size:.72rem;color:var(--muted);align-self:center">Use Ctrl+P ou o botao acima. Selecione "Salvar como PDF".</span>'+
+      '<span style="font-size:.72rem;color:var(--muted);align-self:center">Use Ctrl+P → Salvar como PDF</span>'+
     '</div>';
 
     preview.innerHTML = html;
-  } catch(e) { preview.innerHTML = '<div class="empty-state"><p>Erro: '+e.message+'</p></div>'; }
+  } catch(e) {
+    preview.innerHTML = '<div class="empty-state"><p>Erro: '+e.message+'</p></div>';
+  }
 }
 
 function imprimirRelatorio() { window.print(); }
+
+// =============================================================================
+//  EXPORTAR CSV / XLS — com KPIs e cargas por carga
+// =============================================================================
+function abrirExportar() {
+  var modal = document.getElementById('modal-exportar');
+  if (modal) modal.classList.add('open');
+  var hoje = new Date();
+  var ini  = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  var inEl = document.getElementById('exp-data-ini');
+  var fmEl = document.getElementById('exp-data-fim');
+  if (inEl) inEl.value = ini.toISOString().slice(0,10);
+  if (fmEl) fmEl.value = hoje.toISOString().slice(0,10);
+}
+
+function fecharExportar() {
+  var modal = document.getElementById('modal-exportar');
+  if (modal) modal.classList.remove('open');
+}
+
+async function exportarDados(formato) {
+  var iniEl = document.getElementById('exp-data-ini');
+  var fimEl = document.getElementById('exp-data-fim');
+  if (!iniEl||!iniEl.value||!fimEl||!fimEl.value) { showToast('Selecione o periodo.'); return; }
+  var dataIni = new Date(iniEl.value+'T00:00:00');
+  var dataFim = new Date(fimEl.value+'T23:59:59');
+  if (dataIni > dataFim) { showToast('Data inicial maior que a final.'); return; }
+
+  var comKpis   = document.getElementById('exp-kpis')   && document.getElementById('exp-kpis').checked;
+  var comCargas = document.getElementById('exp-cargas') && document.getElementById('exp-cargas').checked;
+
+  showToast('Carregando dados...');
+
+  if (!db||!currentUser) { showToast('Login necessario.'); return; }
+  var snap;
+  try { snap = await histCol().orderBy('inicio','desc').limit(1000).get(); }
+  catch(e) { snap = await histCol().limit(1000).get(); }
+
+  var registros = [];
+  snap.forEach(function(doc) {
+    var r = doc.data();
+    var d = new Date(r.inicio);
+    if (d >= dataIni && d <= dataFim) registros.push(r);
+  });
+  registros.sort(function(a,b){ return (a.inicio||'').localeCompare(b.inicio||''); });
+
+  var periodoStr = iniEl.value + '_a_' + fimEl.value;
+
+  if (formato === 'csv') {
+    _exportarCSV(registros, comKpis, comCargas, periodoStr);
+  } else {
+    _exportarXLS(registros, comKpis, comCargas, periodoStr);
+  }
+}
+
+function _montarKpiRows(registros) {
+  // Calcula todos os KPIs
+  var totalManut = registros.length;
+  var durTotal   = registros.reduce(function(s,r){ return s+(r.duracaoSeg||0); }, 0);
+  var durMedia   = totalManut>0 ? Math.round(durTotal/totalManut) : 0;
+
+  var pecasContador = {};
+  registros.forEach(function(r) {
+    if (!r.checklist) return;
+    Object.keys(r.checklist).forEach(function(idx) {
+      var item = r.checklist[idx];
+      if (!item||!item.troca) return;
+      var nome = CHECKLIST_ITENS[parseInt(idx)]||'Item '+idx;
+      pecasContador[nome] = (pecasContador[nome]||0) + (parseFloat(item.qtde)||1);
+    });
+  });
+  var topPecas = Object.keys(pecasContador)
+    .map(function(n){ return [n, pecasContador[n]]; })
+    .sort(function(a,b){ return b[1]-a[1]; }).slice(0,10);
+
+  var cargasPorTear = {};
+  registros.forEach(function(r) {
+    var k = r.tear;
+    if (!cargasPorTear[k]) cargasPorTear[k] = { tear:k, modelo:r.modelo, agulhas:[], platinas:[] };
+    if (r.cargaAgulha&&r.cargaAgulha.trocada&&r.cargaAgulha.kg>0)   cargasPorTear[k].agulhas.push(r.cargaAgulha.kg);
+    if (r.cargaPlatina&&r.cargaPlatina.trocada&&r.cargaPlatina.kg>0) cargasPorTear[k].platinas.push(r.cargaPlatina.kg);
+  });
+
+  var kpiRows = [
+    ['KPI', 'Valor'],
+    ['Manutencoes realizadas', totalManut],
+    ['Duracao media (seg)', durMedia],
+    [''],
+    ['Top 10 Pecas Mais Trocadas', ''],
+    ['Peca', 'Qtde']
+  ];
+  topPecas.forEach(function(p){ kpiRows.push([p[0], p[1]]); });
+  kpiRows.push(['']);
+  kpiRows.push(['Media kg / carga de agulhas', '']);
+  kpiRows.push(['Tear', 'Modelo', 'N Cargas', 'Media kg']);
+  Object.values(cargasPorTear).filter(function(t){ return t.agulhas.length; }).forEach(function(t){
+    var m = Math.round(t.agulhas.reduce(function(a,b){return a+b;},0)/t.agulhas.length);
+    kpiRows.push([t.tear, t.modelo, t.agulhas.length, m]);
+  });
+  kpiRows.push(['']);
+  kpiRows.push(['Media kg / carga de platinas', '']);
+  kpiRows.push(['Tear', 'Modelo', 'N Cargas', 'Media kg']);
+  Object.values(cargasPorTear).filter(function(t){ return t.platinas.length; }).forEach(function(t){
+    var m = Math.round(t.platinas.reduce(function(a,b){return a+b;},0)/t.platinas.length);
+    kpiRows.push([t.tear, t.modelo, t.platinas.length, m]);
+  });
+
+  return kpiRows;
+}
+
+function _montarCargaRows(registros) {
+  var rows = [['Data', 'Tear', 'Modelo', 'Tecnico', 'Tipo Carga', 'kg Produzidos']];
+  registros.forEach(function(r) {
+    var dt = new Date(r.inicio).toLocaleDateString('pt-BR');
+    if (r.cargaAgulha&&r.cargaAgulha.trocada&&r.cargaAgulha.kg>0)
+      rows.push([dt, r.tear, r.modelo, r.tecnico||'', 'Agulhas', r.cargaAgulha.kg]);
+    if (r.cargaPlatina&&r.cargaPlatina.trocada&&r.cargaPlatina.kg>0)
+      rows.push([dt, r.tear, r.modelo, r.tecnico||'', 'Platinas', r.cargaPlatina.kg]);
+  });
+  return rows;
+}
+
+function _rowsToCsv(rows) {
+  return rows.map(function(r){
+    return r.map(function(v){ return '"'+(v===undefined||v===null?'':String(v).replace(/"/g,'""'))+'"'; }).join(',');
+  }).join('\n');
+}
+
+function _exportarCSV(registros, comKpis, comCargas, periodoStr) {
+  var partes = [];
+  if (comKpis)   partes.push('=== KPIs GLOBAIS ===\n' + _rowsToCsv(_montarKpiRows(registros)));
+  if (comCargas) partes.push('\n=== KG POR CARGA ===\n' + _rowsToCsv(_montarCargaRows(registros)));
+  if (!partes.length) { showToast('Selecione ao menos uma opcao.'); return; }
+  var csv = '\uFEFF' + partes.join('\n\n');
+  var blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url; a.download = 'manutencao_'+periodoStr+'.csv'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('CSV exportado!');
+}
+
+function _exportarXLS(registros, comKpis, comCargas, periodoStr) {
+  // Gera XLS via XML SpreadsheetML (abre no Excel sem lib externa)
+  var sheets = '';
+
+  function rowsToXml(rows) {
+    return rows.map(function(r) {
+      return '<Row>' + r.map(function(v) {
+        var t = (typeof v === 'number') ? 'Number' : 'String';
+        return '<Cell><Data ss:Type="'+t+'">'+(v===undefined||v===null?'':String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'))+'</Data></Cell>';
+      }).join('') + '</Row>';
+    }).join('\n');
+  }
+
+  if (comKpis) {
+    sheets += '<Worksheet ss:Name="KPIs"><Table>'+rowsToXml(_montarKpiRows(registros))+'</Table></Worksheet>';
+  }
+  if (comCargas) {
+    sheets += '<Worksheet ss:Name="Kg por Carga"><Table>'+rowsToXml(_montarCargaRows(registros))+'</Table></Worksheet>';
+  }
+  if (!sheets) { showToast('Selecione ao menos uma opcao.'); return; }
+
+  var xml = '<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?>'+
+    '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" '+
+    'xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'+sheets+'</Workbook>';
+
+  var blob = new Blob(['\uFEFF'+xml], {type:'application/vnd.ms-excel;charset=utf-8'});
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href   = url; a.download = 'manutencao_'+periodoStr+'.xls'; a.click();
+  URL.revokeObjectURL(url);
+  showToast('XLS exportado!');
+}
 
 // =============================================================================
 //  PATCH: switchDashTab atualizado com novos paineis
