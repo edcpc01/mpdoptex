@@ -1842,7 +1842,66 @@ async function gerarPDF() {
   }
 }
 
-function imprimirRelatorio() { window.print(); }
+function imprimirRelatorio() {
+  var conteudo = document.getElementById('pdf-conteudo');
+  if (!conteudo) { window.print(); return; }
+
+  // Captura estilos relevantes do app
+  var estilos = '';
+  Array.from(document.styleSheets).forEach(function(ss) {
+    try {
+      Array.from(ss.cssRules).forEach(function(rule) { estilos += rule.cssText + '\n'; });
+    } catch(e) {}
+  });
+
+  var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Relatorio Manutencao Preventiva</title>' +
+    '<style>' + estilos +
+    'body{background:#fff!important;color:#000!important;font-family:Arial,sans-serif;margin:0;padding:16px}' +
+    ':root{--text:#111;--muted:#555;--border:#ccc;--s2:#f5f5f5;--s3:#eee;--accent:#f97316;--ok:#16a34a;--warn:#ca8a04;--danger:#dc2626;--info:#0284c7;--surface:#fff}' +
+    '.pdf-kpi-row-4,.pdf-kpi-row-2{display:grid;gap:10px;margin-bottom:14px}' +
+    '.pdf-kpi-row-4{grid-template-columns:repeat(4,1fr)}' +
+    '.pdf-kpi-row-2{grid-template-columns:repeat(2,1fr)}' +
+    '.pdf-kpi{background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:10px;text-align:center}' +
+    '.pdf-kpi-val{font-weight:800;font-size:1.5rem;color:#f97316}' +
+    '.pdf-kpi-lbl{font-size:.65rem;color:#555;margin-top:2px}' +
+    '.pdf-section{margin-bottom:18px}' +
+    '.pdf-section-title{font-weight:700;font-size:.85rem;text-transform:uppercase;letter-spacing:.06em;color:#f97316;border-bottom:1px solid #ddd;padding-bottom:6px;margin-bottom:10px}' +
+    '.pdf-table{width:100%;border-collapse:collapse;font-size:.75rem}' +
+    '.pdf-table th{background:#eee;padding:6px 10px;text-align:left;color:#555;font-weight:700;text-transform:uppercase;font-size:.65rem;letter-spacing:.05em}' +
+    '.pdf-table td{padding:6px 10px;border-bottom:1px solid #eee}' +
+    'button{display:none!important}' +
+    '@media print{@page{margin:12mm}}' +
+    '</style></head><body>' +
+    conteudo.innerHTML +
+    '</body></html>';
+
+  // Remove botao de imprimir do conteudo capturado
+  html = html.replace(/<div[^>]*>.*?Imprimir.*?Salvar PDF.*?<\/div>/gs, '');
+
+  var old = document.getElementById('rel-print-frame');
+  if (old) old.remove();
+  var frame = document.createElement('iframe');
+  frame.id = 'rel-print-frame';
+  frame.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:99999;background:#fff';
+  document.body.appendChild(frame);
+  frame.contentDocument.open();
+  frame.contentDocument.write(html);
+  frame.contentDocument.close();
+
+  // Botao fechar
+  var closeBtn = frame.contentDocument.createElement('button');
+  closeBtn.innerHTML = '&#10005; Fechar';
+  closeBtn.style.cssText = 'display:block!important;position:fixed;top:12px;right:12px;padding:7px 16px;cursor:pointer;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:.85rem;z-index:9999;font-family:Arial,sans-serif';
+  closeBtn.onclick = function(){ document.getElementById('rel-print-frame').remove(); };
+  frame.contentDocument.body.appendChild(closeBtn);
+
+  // Botao imprimir
+  var printBtn = frame.contentDocument.createElement('button');
+  printBtn.innerHTML = '&#128438; Imprimir / PDF';
+  printBtn.style.cssText = 'display:block!important;position:fixed;top:12px;right:130px;padding:7px 16px;cursor:pointer;background:#f97316;color:#fff;border:none;border-radius:6px;font-size:.85rem;z-index:9999;font-family:Arial,sans-serif;font-weight:700';
+  printBtn.onclick = function(){ frame.contentWindow.print(); };
+  frame.contentDocument.body.appendChild(printBtn);
+}
 
 // =============================================================================
 //  EXPORTAR CSV / XLS — com KPIs e cargas por carga
