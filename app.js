@@ -588,6 +588,19 @@ function abrirChecklist(i) {
 
   atualizarProgressoCL(i);
   document.getElementById('modal-checklist').classList.add('open');
+  // Reset carga fields
+  var elAg = document.getElementById('cl-agulha-trocada');
+  var elPl = document.getElementById('cl-platina-trocada');
+  var elAgKg = document.getElementById('cl-agulha-kg');
+  var elPlKg = document.getElementById('cl-platina-kg');
+  var elAgW = document.getElementById('carga-agulha-kg-wrap');
+  var elPlW = document.getElementById('carga-platina-kg-wrap');
+  if (elAg)  elAg.checked = false;
+  if (elPl)  elPl.checked = false;
+  if (elAgKg) elAgKg.value = '';
+  if (elPlKg) elPlKg.value = '';
+  if (elAgW) elAgW.style.display = 'none';
+  if (elPlW) elPlW.style.display = 'none';
 }
 
 function clUpdate(tearIdx, itemIdx) {
@@ -639,17 +652,33 @@ async function finalizarManutencao() {
   // Captura estado final de todos os checkboxes
   CHECKLIST_ITENS.forEach(function(_, idx) { clUpdate(i, idx); });
 
+  // Captura dados de carga de agulhas/platinas
+  var agulhaTrocada = document.getElementById('cl-agulha-trocada');
+  var platinaTrocada = document.getElementById('cl-platina-trocada');
+  var agulhaKg = document.getElementById('cl-agulha-kg');
+  var platinaKg = document.getElementById('cl-platina-kg');
+  var cargaAgulha = (agulhaTrocada && agulhaTrocada.checked) ? {
+    trocada: true,
+    kg: parseFloat((agulhaKg && agulhaKg.value) || '0') || 0
+  } : null;
+  var cargaPlatina = (platinaTrocada && platinaTrocada.checked) ? {
+    trocada: true,
+    kg: parseFloat((platinaKg && platinaKg.value) || '0') || 0
+  } : null;
+
   // Monta registro
   var registro = {
-    tearIndex:  i,
-    tear:       d.tear,
-    modelo:     d.modelo,
-    inicio:     new Date(manut.startTime).toISOString(),
-    fim:        new Date().toISOString(),
-    duracaoSeg: elapsed,
-    tecnico:    currentUser ? (currentUser.displayName || currentUser.email) : 'desconhecido',
-    obs:        obs,
-    checklist:  JSON.parse(JSON.stringify(manut.checklist))
+    tearIndex:     i,
+    tear:          d.tear,
+    modelo:        d.modelo,
+    inicio:        new Date(manut.startTime).toISOString(),
+    fim:           new Date().toISOString(),
+    duracaoSeg:    elapsed,
+    tecnico:       currentUser ? (currentUser.displayName || currentUser.email) : 'desconhecido',
+    obs:           obs,
+    checklist:     JSON.parse(JSON.stringify(manut.checklist)),
+    cargaAgulha:   cargaAgulha,
+    cargaPlatina:  cargaPlatina
   };
 
   // Salva no Firestore
@@ -1765,15 +1794,16 @@ function imprimirRelatorio() { window.print(); }
 function switchDashTab(tab, btn) {
   document.querySelectorAll('.dash-tab').forEach(function(b){ b.classList.remove('active'); });
   if (btn) btn.classList.add('active');
-  var paineis = ['timeline','graficos','tecnicos','pecas'];
+  var paineis = ['timeline','graficos','tecnicos','pecas','producao'];
   paineis.forEach(function(p){
     var el = document.getElementById('dash-'+p);
     if (el) el.style.display = (p===tab)?'':'none';
   });
   // Carrega dados lazy
-  if (tab==='graficos') renderGraficos();
-  else if (tab==='tecnicos') renderTecnicos();
-  else if (tab==='pecas') renderPecasUsadas();
+  if (tab==='graficos')  renderGraficos();
+  else if (tab==='tecnicos')  renderTecnicos();
+  else if (tab==='pecas')     renderPecasUsadas();
+  else if (tab==='producao')  renderProducao();
 }
 
 // =============================================================================
@@ -1786,7 +1816,7 @@ abrirDashboard = async function() {
   if (modal) modal.classList.add('open');
   // Ativa tab timeline
   document.querySelectorAll('.dash-tab').forEach(function(b,i){ b.classList.toggle('active',i===0); });
-  ['graficos','tecnicos','pecas'].forEach(function(p){
+  ['graficos','tecnicos','pecas','producao'].forEach(function(p){
     var el=document.getElementById('dash-'+p); if(el) el.style.display='none';
   });
   var tl=document.getElementById('dash-timeline'); if(tl) tl.style.display='';
@@ -1927,4 +1957,222 @@ async function carregarManutsAtivas() {
       _mostrarManutRemota(idx, startMs, data.tecnico);
     });
   } catch(e) { console.warn('[SyncManut] carregar:', e.message); }
+}
+
+// =============================================================================
+//  TOGGLE CARGA KG (mostra/esconde campo de kg)
+// =============================================================================
+function toggleCargaKg(tipo) {
+  var wrap = document.getElementById('carga-' + tipo + '-kg-wrap');
+  var chk  = document.getElementById('cl-' + tipo + '-trocada');
+  if (wrap && chk) wrap.style.display = chk.checked ? 'flex' : 'none';
+}
+
+// =============================================================================
+//  DASHBOARD — PRODUCAO POR CARGA DE AGULHAS/PLATINAS
+// =============================================================================
+async function renderProducao() {
+  var container = document.getElementById('dash-producao');
+  if (!container) return;
+  container.innerHTML = '<div class="empty-state"><p>Carregando...</p></div>';
+  if (!db || !currentUser) { container.innerHTML = '<div class="empty-state"><p>Login necessario.</p></div>'; return; }
+
+  try {
+    var snap;
+    try { snap = await histCol().orderBy('inicio','desc').limit(500).get(); }
+    catch(e) { snap = await histCol().limit(500).get(); }
+
+    if (snap.empty) {
+      container.innerHTML = '<div class="empty-state"><p>Nenhuma manutencao registrada ainda.</p></div>';
+      return;
+    }
+
+    // Coleta registros com carga de agulha ou platina
+    var porTear = {}; // tearNum -> { agulhas: [{kg, data}], platinas: [{kg, data}] }
+    var totalRegistros = 0;
+
+    snap.forEach(function(doc) {
+      var r = doc.data();
+      var tNum = r.tear;
+      if (!porTear[tNum]) porTear[tNum] = { tear: tNum, modelo: r.modelo, agulhas: [], platinas: [] };
+
+      if (r.cargaAgulha && r.cargaAgulha.trocada && r.cargaAgulha.kg > 0) {
+        porTear[tNum].agulhas.push({ kg: r.cargaAgulha.kg, data: r.fim || r.inicio });
+        totalRegistros++;
+      }
+      if (r.cargaPlatina && r.cargaPlatina.trocada && r.cargaPlatina.kg > 0) {
+        porTear[tNum].platinas.push({ kg: r.cargaPlatina.kg, data: r.fim || r.inicio });
+        totalRegistros++;
+      }
+    });
+
+    if (totalRegistros === 0) {
+      container.innerHTML = '<div class="empty-state" style="padding:32px">' +
+        '<p style="margin-bottom:8px">Nenhum registro de producao por carga ainda.</p>' +
+        '<p style="font-size:.75rem;color:var(--muted)">Ao finalizar uma manutencao com troca completa de agulhas ou platinas,<br>informe os kg produzidos com a carga anterior para ver este relatorio.</p>' +
+        '</div>';
+      return;
+    }
+
+    // Calcula medias por tear
+    var teares = Object.values(porTear).filter(function(t){ return t.agulhas.length > 0 || t.platinas.length > 0; });
+
+    // Ordena por media de agulhas desc
+    teares.sort(function(a, b) {
+      var ma = a.agulhas.length ? a.agulhas.reduce(function(s,x){return s+x.kg;},0)/a.agulhas.length : 0;
+      var mb = b.agulhas.length ? b.agulhas.reduce(function(s,x){return s+x.kg;},0)/b.agulhas.length : 0;
+      return mb - ma;
+    });
+
+    var maxMediaAgulha = 0, maxMediaPlatina = 0;
+    teares.forEach(function(t) {
+      if (t.agulhas.length) {
+        var m = t.agulhas.reduce(function(s,x){return s+x.kg;},0)/t.agulhas.length;
+        if (m > maxMediaAgulha) maxMediaAgulha = m;
+      }
+      if (t.platinas.length) {
+        var m = t.platinas.reduce(function(s,x){return s+x.kg;},0)/t.platinas.length;
+        if (m > maxMediaPlatina) maxMediaPlatina = m;
+      }
+    });
+
+    // KPIs globais
+    var allAgKg  = [], allPlKg = [];
+    teares.forEach(function(t){
+      t.agulhas.forEach(function(x){allAgKg.push(x.kg);});
+      t.platinas.forEach(function(x){allPlKg.push(x.kg);});
+    });
+    var mediaGlobalAg = allAgKg.length ? Math.round(allAgKg.reduce(function(a,b){return a+b;},0)/allAgKg.length) : 0;
+    var mediaGlobalPl = allPlKg.length ? Math.round(allPlKg.reduce(function(a,b){return a+b;},0)/allPlKg.length) : 0;
+
+    var html = '';
+
+    // KPI summary
+    html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px 18px;border-bottom:1px solid var(--border)">' +
+      '<div class="chart-stat"><div class="chart-stat-val">' + allAgKg.length + '</div><div class="chart-stat-lbl">Registros de agulhas</div></div>' +
+      '<div class="chart-stat"><div class="chart-stat-val">' + (mediaGlobalAg>0?mediaGlobalAg.toLocaleString('pt-BR')+' kg':'-') + '</div><div class="chart-stat-lbl">Media global / carga agulha</div></div>' +
+      '<div class="chart-stat"><div class="chart-stat-val">' + (mediaGlobalPl>0?mediaGlobalPl.toLocaleString('pt-BR')+' kg':'-') + '</div><div class="chart-stat-lbl">Media global / carga platina</div></div>' +
+    '</div>';
+
+    // Abas agulhas / platinas
+    html += '<div style="display:flex;border-bottom:1px solid var(--border)">' +
+      '<button class="dash-tab active" id="prod-tab-ag" onclick="switchProdTab(\'ag\')" style="font-size:.78rem;padding:10px">&#128295; Agulhas</button>' +
+      '<button class="dash-tab" id="prod-tab-pl" onclick="switchProdTab(\'pl\')" style="font-size:.78rem;padding:10px">&#9632; Platinas</button>' +
+    '</div>';
+
+    // Ranking agulhas
+    html += '<div id="prod-ag">';
+    var tearesComAg = teares.filter(function(t){ return t.agulhas.length > 0; });
+    if (!tearesComAg.length) {
+      html += '<div class="empty-state"><p>Nenhum registro de agulhas ainda.</p></div>';
+    } else {
+      html += '<div class="prod-header"><span>Ranking por media de kg / carga completa de agulhas</span><span>' + allAgKg.length + ' registro(s)</span></div>';
+      tearesComAg.forEach(function(t, pos) {
+        var media    = Math.round(t.agulhas.reduce(function(s,x){return s+x.kg;},0)/t.agulhas.length);
+        var pct      = maxMediaAgulha > 0 ? Math.round((media/maxMediaAgulha)*100) : 0;
+        var cor      = pos===0?'var(--accent)':pos<=2?'var(--warn)':'var(--ok)';
+        var ultima   = t.agulhas[0] ? new Date(t.agulhas[0].data).toLocaleDateString('pt-BR') : '-';
+        html += '<div class="prod-row">' +
+          '<div class="prod-pos" style="color:'+cor+'">'+(pos+1)+'</div>' +
+          '<div class="prod-info">' +
+            '<div class="prod-tear">Tear <strong>'+t.tear+'</strong> &mdash; <span style="color:var(--muted);font-size:.75rem">'+t.modelo+'</span></div>' +
+            '<div class="prod-bar-wrap"><div class="prod-bar" style="width:'+pct+'%;background:'+cor+'"></div></div>' +
+            '<div class="prod-meta">' +
+              '<span>&#128202; <strong>'+t.agulhas.length+'</strong> carga(s) registrada(s)</span>' +
+              '<span>Ultima: <strong>'+ultima+'</strong></span>' +
+            '</div>' +
+          '</div>' +
+          '<div><div class="prod-kg" style="color:'+cor+'">'+media.toLocaleString('pt-BR')+'</div><div class="prod-kg-lbl">kg / carga</div></div>' +
+        '</div>';
+      });
+      // Evolucao historica (todos os registros em ordem cronologica)
+      html += _renderEvolucaoChart(teares, 'agulha');
+    }
+    html += '</div>';
+
+    // Ranking platinas
+    html += '<div id="prod-pl" style="display:none">';
+    var tearesComPl = teares.filter(function(t){ return t.platinas.length > 0; });
+    if (!tearesComPl.length) {
+      html += '<div class="empty-state"><p>Nenhum registro de platinas ainda.</p></div>';
+    } else {
+      var maxPl = tearesComPl.reduce(function(mx,t){
+        var m = t.platinas.reduce(function(s,x){return s+x.kg;},0)/t.platinas.length;
+        return m>mx?m:mx;
+      },0);
+      // Ordena por media platinas
+      var tearesOrdPl = tearesComPl.slice().sort(function(a,b){
+        var ma = a.platinas.reduce(function(s,x){return s+x.kg;},0)/a.platinas.length;
+        var mb = b.platinas.reduce(function(s,x){return s+x.kg;},0)/b.platinas.length;
+        return mb-ma;
+      });
+      html += '<div class="prod-header"><span>Ranking por media de kg / carga completa de platinas</span><span>' + allPlKg.length + ' registro(s)</span></div>';
+      tearesOrdPl.forEach(function(t, pos) {
+        var media  = Math.round(t.platinas.reduce(function(s,x){return s+x.kg;},0)/t.platinas.length);
+        var pct    = maxPl > 0 ? Math.round((media/maxPl)*100) : 0;
+        var cor    = pos===0?'var(--accent)':pos<=2?'var(--warn)':'var(--ok)';
+        var ultima = t.platinas[0] ? new Date(t.platinas[0].data).toLocaleDateString('pt-BR') : '-';
+        html += '<div class="prod-row">' +
+          '<div class="prod-pos" style="color:'+cor+'">'+(pos+1)+'</div>' +
+          '<div class="prod-info">' +
+            '<div class="prod-tear">Tear <strong>'+t.tear+'</strong> &mdash; <span style="color:var(--muted);font-size:.75rem">'+t.modelo+'</span></div>' +
+            '<div class="prod-bar-wrap"><div class="prod-bar" style="width:'+pct+'%;background:'+cor+'"></div></div>' +
+            '<div class="prod-meta">' +
+              '<span>&#128202; <strong>'+t.platinas.length+'</strong> carga(s) registrada(s)</span>' +
+              '<span>Ultima: <strong>'+ultima+'</strong></span>' +
+            '</div>' +
+          '</div>' +
+          '<div><div class="prod-kg" style="color:'+cor+'">'+media.toLocaleString('pt-BR')+'</div><div class="prod-kg-lbl">kg / carga</div></div>' +
+        '</div>';
+      });
+      html += _renderEvolucaoChart(teares, 'platina');
+    }
+    html += '</div>';
+
+    container.innerHTML = html;
+  } catch(e) {
+    container.innerHTML = '<div class="empty-state"><p>Erro: '+e.message+'</p></div>';
+  }
+}
+
+function _renderEvolucaoChart(teares, tipo) {
+  // Coleta todos os pontos cronologicamente
+  var pontos = [];
+  teares.forEach(function(t) {
+    var lista = tipo === 'agulha' ? t.agulhas : t.platinas;
+    lista.forEach(function(x) {
+      pontos.push({ tear: t.tear, kg: x.kg, data: x.data });
+    });
+  });
+  if (pontos.length < 2) return '';
+  pontos.sort(function(a,b){ return (a.data||'').localeCompare(b.data||''); });
+
+  var maxKg = Math.max.apply(null, pontos.map(function(p){ return p.kg; })) || 1;
+  var html = '<div class="prod-chart-wrap"><div class="prod-chart-title">Evolucao historica — kg por carga de ' + tipo + 's</div>';
+  html += '<div class="prod-points">';
+  pontos.forEach(function(p, idx) {
+    var x   = Math.round((idx / (pontos.length-1||1)) * 100);
+    var y   = Math.round((p.kg / maxKg) * 100);
+    var cor = p.kg > (maxKg * 0.8) ? 'var(--ok)' : p.kg > (maxKg * 0.5) ? 'var(--warn)' : 'var(--danger)';
+    var dt  = new Date(p.data).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
+    html += '<div class="prod-point" style="left:'+x+'%;bottom:'+y+'%;background:'+cor+'" title="Tear '+p.tear+' — '+p.kg.toLocaleString('pt-BR')+'kg ('+dt+')"></div>';
+    if (idx===0 || idx===pontos.length-1 || pontos.length <= 8) {
+      html += '<span class="prod-point-lbl" style="left:'+x+'%;bottom:calc('+y+'% + 14px);position:absolute;font-size:.52rem;color:var(--muted)">T'+p.tear+'</span>';
+    }
+  });
+  html += '</div>';
+  // Eixo Y labels
+  html += '<div style="display:flex;justify-content:space-between;font-size:.6rem;color:var(--muted);margin-top:4px">';
+  html += '<span>'+pontos[0]?new Date(pontos[0].data).toLocaleDateString('pt-BR',{month:'short',year:'2-digit'}):'';
+  html += '</span><span>'+Math.round(maxKg).toLocaleString('pt-BR')+' kg max</span>';
+  html += '</div>';
+  html += '</div>';
+  return html;
+}
+
+function switchProdTab(tab) {
+  document.getElementById('prod-ag').style.display = tab==='ag' ? '' : 'none';
+  document.getElementById('prod-pl').style.display = tab==='pl' ? '' : 'none';
+  document.getElementById('prod-tab-ag').classList.toggle('active', tab==='ag');
+  document.getElementById('prod-tab-pl').classList.toggle('active', tab==='pl');
 }
