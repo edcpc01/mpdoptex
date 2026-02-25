@@ -61,9 +61,31 @@ var CHECKLIST_ITENS = [
 // =============================================================================
 //  ESTADO
 // =============================================================================
+// Reinicia 'today' usando fuso de SP
+var _sp = nowBR(); today = new Date(_sp); today.setHours(0,0,0,0);
+
 var db = null, auth = null, currentUser = null;
 var firestoreData = {}, usingFirebase = false;
 var today = new Date(); today.setHours(0,0,0,0);
+
+// ── Fuso horário: America/Sao_Paulo (GMT-3) ──
+var TZ = 'America/Sao_Paulo';
+function nowBR() {
+  // Retorna Date ajustado para GMT-3
+  return new Date(new Date().toLocaleString('en-US', { timeZone: TZ }));
+}
+function isoLocalBR(date) {
+  // Converte Date para string ISO no fuso de SP: "2026-02-25T22:30:00"
+  var d = date || new Date();
+  var sp = new Date(d.toLocaleString('en-US', { timeZone: TZ }));
+  var pad2 = function(n){ return String(n).padStart(2,'0'); };
+  return sp.getFullYear() + '-' + pad2(sp.getMonth()+1) + '-' + pad2(sp.getDate()) +
+    'T' + pad2(sp.getHours()) + ':' + pad2(sp.getMinutes()) + ':' + pad2(sp.getSeconds());
+}
+function dateBR(date) {
+  // Retorna só a data "YYYY-MM-DD" no fuso de SP
+  return isoLocalBR(date).slice(0,10);
+}
 var STORAGE_KEY = 'mp_preventiva_v4';
 var EMPRESA_ID  = 'mpdoptex';
 var _fbReady    = false;
@@ -671,8 +693,8 @@ async function finalizarManutencao() {
     tearIndex:     i,
     tear:          d.tear,
     modelo:        d.modelo,
-    inicio:        new Date(manut.startTime).toISOString(),
-    fim:           new Date().toISOString(),
+    inicio:        isoLocalBR(new Date(manut.startTime)),
+    fim:           isoLocalBR(new Date()),
     duracaoSeg:    elapsed,
     tecnico:       currentUser ? (currentUser.displayName || currentUser.email) : 'desconhecido',
     obs:           obs,
@@ -701,7 +723,7 @@ async function finalizarManutencao() {
 
   // Atualiza data na linha
   var dEl  = document.getElementById('d-'+i);
-  if (dEl) { dEl.value = new Date().toISOString().slice(0,10); onChange(i); }
+  if (dEl) { dEl.value = dateBR(); onChange(i); }
 
   // Sincroniza fim com outros dispositivos
   await syncFinalizarManut(i);
@@ -765,7 +787,7 @@ function fecharHistorico() { document.getElementById('modal-historico').classLis
 function filtrarHistorico(filtro, btn) {
   document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
   if (btn) btn.classList.add('active');
-  var agora = new Date();
+  var agora = nowBR();
   var dados = _historicoTodos;
   if (filtro === 'mes') {
     dados = _historicoTodos.filter(function(r) {
@@ -834,7 +856,7 @@ function exportCSV() {
   var csv=rows.map(function(r){return r.map(function(v){return'"'+v+'"';}).join(',');}).join('\n');
   var blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8;'});
   var url=URL.createObjectURL(blob),a=document.createElement('a');
-  a.href=url;a.download='manutencao_'+today.toISOString().slice(0,10)+'.csv';a.click();
+  a.href=url;a.download='manutencao_'+dateBR()+'.csv';a.click();
   URL.revokeObjectURL(url);showToast('CSV exportado!');
 }
 
@@ -1660,8 +1682,8 @@ function abrirRelatorioPDF() {
   // Define período padrão: início do mês até hoje
   var hoje = new Date();
   var ini  = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  var iniStr = ini.toISOString().slice(0,10);
-  var fimStr = hoje.toISOString().slice(0,10);
+  var iniStr = dateBR(ini);
+  var fimStr = dateBR(hoje);
   var inEl = document.getElementById('pdf-data-ini');
   var fmEl = document.getElementById('pdf-data-fim');
   if (inEl) inEl.value = iniStr;
@@ -1913,8 +1935,8 @@ function abrirExportar() {
   var ini  = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
   var inEl = document.getElementById('exp-data-ini');
   var fmEl = document.getElementById('exp-data-fim');
-  if (inEl) inEl.value = ini.toISOString().slice(0,10);
-  if (fmEl) fmEl.value = hoje.toISOString().slice(0,10);
+  if (inEl) inEl.value = dateBR(ini);
+  if (fmEl) fmEl.value = dateBR(hoje);
 }
 
 function fecharExportar() {
