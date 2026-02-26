@@ -974,20 +974,9 @@ function showToast(msg) {
 function toggleMenu() { var m=document.getElementById('menu-dropdown'); if(m) m.classList.toggle('open'); }
 // ── Vincula eventos dos botões de login ────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
-  var btnSubmit     = document.getElementById('btn-submit');
-  var btnToggleReg  = document.getElementById('btn-toggle-reg');
-  var btnForgot     = document.getElementById('btn-forgot');
-  var btnBack       = document.getElementById('btn-back');
-  var inpEmail      = document.getElementById('inp-email');
-  var inpPass       = document.getElementById('inp-pass');
-
-  if (btnSubmit)    btnSubmit.addEventListener('click',   submitForm);
-  if (btnToggleReg) btnToggleReg.addEventListener('click', toggleTela);
-  if (btnForgot)    btnForgot.addEventListener('click',   mostrarReset);
-  if (btnBack)      btnBack.addEventListener('click',     mostrarLogin);
-
-  // Enter nos campos também submete
-  [inpEmail, inpPass].forEach(function(el) {
+  // Enter nos campos de login submete o formulário
+  ['inp-email','inp-pass'].forEach(function(id) {
+    var el = document.getElementById(id);
     if (el) el.addEventListener('keydown', function(ev) {
       if (ev.key === 'Enter') submitForm();
     });
