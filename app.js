@@ -2625,3 +2625,8 @@ function switchProdTab(tab) {
   document.getElementById('prod-tab-ag').classList.toggle('active', tab==='ag');
   document.getElementById('prod-tab-pl').classList.toggle('active', tab==='pl');
 }
+
+// ── Inicializa Firebase ao carregar ──────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', function() {
+  initFirebase();
+});
