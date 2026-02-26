@@ -964,20 +964,63 @@ var deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferredPrompt=e; var btn=document.getElementById('btn-install'); if(btn)btn.style.display='flex'; });
 async function installPWA() { if(!deferredPrompt)return; deferredPrompt.prompt(); var r=await deferredPrompt.userChoice; if(r.outcome==='accepted'){var btn=document.getElementById('btn-install');if(btn)btn.style.display='none';showToast('App instalado!');}deferredPrompt=null; }
 window.addEventListener('appinstalled', function(){ var btn=document.getElementById('btn-install'); if(btn)btn.style.display='none'; });
-if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(function(e){ console.warn('[SW]',e); }); }
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').then(function(reg) {
 
-// =============================================================================
-//  INIT
-// =============================================================================
-document.addEventListener('DOMContentLoaded', function() {
-  var btnSubmit = document.getElementById('btn-submit');     if(btnSubmit) btnSubmit.onclick = submitForm;
-  var btnToggle = document.getElementById('btn-toggle-reg'); if(btnToggle) btnToggle.onclick = toggleTela;
-  var btnForgot = document.getElementById('btn-forgot');     if(btnForgot) btnForgot.onclick = mostrarReset;
-  var btnBack   = document.getElementById('btn-back');       if(btnBack)   btnBack.onclick   = mostrarLogin;
-  var inputPass = document.getElementById('inp-pass');       if(inputPass) inputPass.addEventListener('keydown', function(e){ if(e.key==='Enter') submitForm(); });
-  verificarQRScan();
-  initFirebase();
-});
+    // Detecta novo SW aguardando para ser ativado
+    reg.addEventListener('updatefound', function() {
+      var newSW = reg.installing;
+      newSW.addEventListener('statechange', function() {
+        if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+          // Nova versão disponível — mostra banner
+          _mostrarBannerUpdate(newSW);
+        }
+      });
+    });
+
+    // Verifica update ao abrir o app
+    reg.update();
+
+  }).catch(function(err) {
+    console.warn('[SW] Registro falhou:', err);
+  });
+
+  // Reload automático quando novo SW assume controle
+  var refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (!refreshing) { refreshing = true; window.location.reload(); }
+  });
+}
+
+function _mostrarBannerUpdate(newSW) {
+  var banner = document.createElement('div');
+  banner.id  = 'update-banner';
+  banner.style.cssText = [
+    'position:fixed;bottom:0;left:0;right:0;z-index:99999',
+    'background:#f97316;color:#000;padding:14px 20px',
+    'display:flex;align-items:center;justify-content:space-between;gap:12px',
+    'font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:1rem',
+    'box-shadow:0 -4px 20px rgba(0,0,0,.4);flex-wrap:wrap'
+  ].join(';');
+  banner.innerHTML =
+    '<span>&#9654; Nova versao do app disponivel!</span>' +
+    '<div style="display:flex;gap:8px">' +
+      '<button onclick="_aplicarUpdate()" style="background:#000;color:#f97316;border:none;padding:8px 18px;border-radius:6px;font-family:inherit;font-weight:800;font-size:.9rem;cursor:pointer">Atualizar agora</button>' +
+      '<button onclick="document.getElementById(\'update-banner\').remove()" style="background:rgba(0,0,0,.2);color:#000;border:none;padding:8px 14px;border-radius:6px;font-family:inherit;font-size:.85rem;cursor:pointer">Mais tarde</button>' +
+    '</div>';
+  document.body.appendChild(banner);
+  window._pendingSW = newSW;
+}
+
+function _aplicarUpdate() {
+  var banner = document.getElementById('update-banner');
+  if (banner) banner.innerHTML = '<span>&#8635; Atualizando...</span>';
+  if (window._pendingSW) {
+    window._pendingSW.postMessage({ type: 'SKIP_WAITING' });
+  } else {
+    window.location.reload();
+  }
+};
 
 // =============================================================================
 //  NIVEIS DE ACESSO
