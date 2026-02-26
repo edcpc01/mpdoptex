@@ -90,6 +90,7 @@ var STORAGE_KEY = 'mp_preventiva_v4';
 var EMPRESA_ID  = 'mpdoptex';
 var _fbReady    = false;
 var manutsAtivas = {};  // tearIndex -> { startTime, timerInterval, checklist, obs }
+var _unsubTeares = null;
 var clTearIndex  = null;
 
 // =============================================================================
@@ -278,13 +279,19 @@ async function doReset() {
 }
 
 async function doLogout() {
-  // Remove manutenções locais ativas do Firestore ao sair
+  // 1. Para todos os listeners ANTES de fazer signOut
+  if (_unsubManutsAtivas) { _unsubManutsAtivas(); _unsubManutsAtivas = null; }
+  if (_unsubTeares)       { _unsubTeares();        _unsubTeares = null; }
+
+  // 2. Remove manutenções locais ativas do Firestore
   var localKeys = Object.keys(manutsAtivas).filter(function(k){ return !manutsAtivas[k]._remote; });
   for (var k of localKeys) {
     clearInterval(manutsAtivas[k].timerInterval);
     await syncFinalizarManut(parseInt(k));
   }
   manutsAtivas = {};
+
+  // 3. Faz logout
   if (auth) await auth.signOut();
   else { currentUser = null; showScreen('screen-login'); mostrarLogin(); }
 }
@@ -335,7 +342,7 @@ async function loadFirestore() {
 function listenRealtime() {
   if (!db || !currentUser) return;
   var primeiro = true;
-  tearCol().onSnapshot(function(snap) {
+  _unsubTeares = tearCol().onSnapshot(function(snap) {
     if (primeiro) { primeiro = false; return; }
     snap.docChanges().forEach(function(ch) {
       if (ch.type === 'modified' || ch.type === 'added') {
@@ -2344,9 +2351,12 @@ async function syncFinalizarManut(i) {
 }
 
 // Escuta manutenções ativas de outros dispositivos em tempo real
+var _unsubManutsAtivas = null;
+
 function listenManutsAtivas() {
   if (!db || !currentUser) return;
-  manuAtivCol().onSnapshot(function(snap) {
+  if (_unsubManutsAtivas) { _unsubManutsAtivas(); _unsubManutsAtivas = null; }
+  _unsubManutsAtivas = manuAtivCol().onSnapshot(function(snap) {
     snap.docChanges().forEach(function(ch) {
       var idx  = parseInt(ch.doc.id);
       var data = ch.doc.data();
