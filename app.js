@@ -999,23 +999,57 @@ var deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferredPrompt=e; var btn=document.getElementById('btn-install'); if(btn)btn.style.display='flex'; });
 async function installPWA() { if(!deferredPrompt)return; deferredPrompt.prompt(); var r=await deferredPrompt.userChoice; if(r.outcome==='accepted'){var btn=document.getElementById('btn-install');if(btn)btn.style.display='none';showToast('App instalado!');}deferredPrompt=null; }
 window.addEventListener('appinstalled', function(){ var btn=document.getElementById('btn-install'); if(btn)btn.style.display='none'; });
-// Service Worker desativado temporariamente para resolver conflito de cache
-// Limpa qualquer SW antigo que esteja interceptando Firebase
+// Service Worker — cache offline + auto-update
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(function(regs) {
-    regs.forEach(function(r) { r.unregister(); });
+  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+
+    // Detecta nova versao disponivel
+    reg.addEventListener('updatefound', function() {
+      var newSW = reg.installing;
+      newSW.addEventListener('statechange', function() {
+        if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+          _mostrarBannerUpdate(newSW);
+        }
+      });
+    });
+
+    // Verifica update a cada abertura do app
+    reg.update();
+
+  }).catch(function(err) { console.warn('[SW]', err); });
+
+  // Recarrega automaticamente quando novo SW assume
+  var _swRefreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (!_swRefreshing) { _swRefreshing = true; window.location.reload(); }
   });
-  caches.keys().then(function(keys) {
-    keys.forEach(function(k) { caches.delete(k); });
-  });
-  // Escuta mensagem do SW kill-switch
-  navigator.serviceWorker.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'SW_DEACTIVATED') {
-      console.log('[SW] Desativado com sucesso.');
-    }
-  });
-  // Registra o SW kill-switch para limpar tudo
-  navigator.serviceWorker.register('/sw.js').catch(function(){});
+}
+
+function _mostrarBannerUpdate(newSW) {
+  var old = document.getElementById('update-banner');
+  if (old) return;
+  var banner = document.createElement('div');
+  banner.id = 'update-banner';
+  banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#f97316;color:#000;padding:12px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:1rem;box-shadow:0 -4px 20px rgba(0,0,0,.4);flex-wrap:wrap';
+  banner.innerHTML =
+    '<span>&#9654; Nova versao disponivel!</span>' +
+    '<div style="display:flex;gap:8px">' +
+      '<button onclick="_aplicarUpdate()" style="background:#000;color:#f97316;border:none;padding:8px 18px;border-radius:6px;font-family:inherit;font-weight:800;font-size:.9rem;cursor:pointer">Atualizar agora</button>' +
+      '<button onclick="_fecharBanner()" style="background:rgba(0,0,0,.2);color:#000;border:none;padding:8px 14px;border-radius:6px;font-family:inherit;font-size:.85rem;cursor:pointer">Mais tarde</button>' +
+    '</div>';
+  document.body.appendChild(banner);
+  window._pendingSW = newSW;
+}
+
+function _aplicarUpdate() {
+  var banner = document.getElementById('update-banner');
+  if (banner) banner.innerHTML = '<span>&#8635; Atualizando...</span>';
+  if (window._pendingSW) window._pendingSW.postMessage({ type: 'SKIP_WAITING' });
+  else window.location.reload();
+}
+function _fecharBanner() {
+  var b = document.getElementById('update-banner');
+  if (b) b.remove();
 }
 
 function _mostrarBannerUpdate(newSW) {
