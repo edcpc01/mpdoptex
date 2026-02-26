@@ -623,6 +623,75 @@ function abrirChecklist(i) {
   if (elPlKg) elPlKg.value = '';
   if (elAgW) elAgW.style.display = 'none';
   if (elPlW) elPlW.style.display = 'none';
+
+  // Limpa datas anteriores e carrega do histórico async
+  _setUltimaCarga('agulha', null);
+  _setUltimaCarga('platina', null);
+  _carregarUltimasCargasTear(d.tear);
+}
+
+function _setUltimaCarga(tipo, dataISO) {
+  var elId = 'ultima-carga-' + tipo;
+  var el = document.getElementById(elId);
+  if (!el) return;
+  if (!dataISO) {
+    el.textContent = 'Buscando histórico...';
+    el.style.color = 'var(--muted)';
+    return;
+  }
+  var dt  = new Date(dataISO);
+  var dtStr = dt.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' });
+  // Calcula dias atrás
+  var diasAtras = Math.floor((nowBR() - dt) / 86400000);
+  var diasStr   = diasAtras === 0 ? 'hoje' : diasAtras === 1 ? 'há 1 dia' : 'há ' + diasAtras + ' dias';
+  el.textContent = 'Última troca: ' + dtStr + ' (' + diasStr + ')';
+  el.style.color = diasAtras <= 30 ? 'var(--ok)' : diasAtras <= 90 ? 'var(--warn)' : 'var(--muted)';
+}
+
+async function _carregarUltimasCargasTear(tearNum) {
+  if (!db || !currentUser) {
+    _setUltimaCarga('agulha', 'sem-dados');
+    _setUltimaCarga('platina', 'sem-dados');
+    return;
+  }
+  try {
+    var snap;
+    try { snap = await histCol().where('tear','==',tearNum).orderBy('inicio','desc').limit(100).get(); }
+    catch(e) { snap = await histCol().orderBy('inicio','desc').limit(300).get(); }
+
+    var ultimaAgulha = null, ultimaPlatina = null;
+    snap.forEach(function(doc) {
+      var r = doc.data();
+      if (r.tear !== tearNum) return; // fallback sem where
+      if (!ultimaAgulha && r.cargaAgulha  && r.cargaAgulha.trocada)  ultimaAgulha  = r.fim || r.inicio;
+      if (!ultimaPlatina && r.cargaPlatina && r.cargaPlatina.trocada) ultimaPlatina = r.fim || r.inicio;
+    });
+
+    var elAg = document.getElementById('ultima-carga-agulha');
+    var elPl = document.getElementById('ultima-carga-platina');
+    if (elAg) {
+      if (ultimaAgulha) {
+        _setUltimaCarga('agulha', ultimaAgulha);
+      } else {
+        elAg.textContent = 'Nenhum registro encontrado';
+        elAg.style.color = 'var(--muted)';
+      }
+    }
+    if (elPl) {
+      if (ultimaPlatina) {
+        _setUltimaCarga('platina', ultimaPlatina);
+      } else {
+        elPl.textContent = 'Nenhum registro encontrado';
+        elPl.style.color = 'var(--muted)';
+      }
+    }
+  } catch(e) {
+    console.warn('[UltimaCarga]', e.message);
+    var elAg = document.getElementById('ultima-carga-agulha');
+    var elPl = document.getElementById('ultima-carga-platina');
+    if (elAg) { elAg.textContent = 'Erro ao buscar'; elAg.style.color = 'var(--danger)'; }
+    if (elPl) { elPl.textContent = 'Erro ao buscar'; elPl.style.color = 'var(--danger)'; }
+  }
 }
 
 function clUpdate(tearIdx, itemIdx) {
