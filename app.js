@@ -964,39 +964,23 @@ var deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); deferredPrompt=e; var btn=document.getElementById('btn-install'); if(btn)btn.style.display='flex'; });
 async function installPWA() { if(!deferredPrompt)return; deferredPrompt.prompt(); var r=await deferredPrompt.userChoice; if(r.outcome==='accepted'){var btn=document.getElementById('btn-install');if(btn)btn.style.display='none';showToast('App instalado!');}deferredPrompt=null; }
 window.addEventListener('appinstalled', function(){ var btn=document.getElementById('btn-install'); if(btn)btn.style.display='none'; });
+// Service Worker desativado temporariamente para resolver conflito de cache
+// Limpa qualquer SW antigo que esteja interceptando Firebase
 if ('serviceWorker' in navigator) {
-  // Desregistra SWs antigos problemáticos e limpa caches antes de registrar novo
   navigator.serviceWorker.getRegistrations().then(function(regs) {
-    var promises = regs.map(function(r) { return r.unregister(); });
-    return Promise.all(promises);
-  }).then(function() {
-    return caches.keys();
-  }).then(function(keys) {
-    return Promise.all(keys.map(function(k) { return caches.delete(k); }));
-  }).then(function() {
-    // Agora registra o SW limpo
-    return navigator.serviceWorker.register('/sw.js');
-  }).then(function(reg) {
-
-    reg.addEventListener('updatefound', function() {
-      var newSW = reg.installing;
-      newSW.addEventListener('statechange', function() {
-        if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-          _mostrarBannerUpdate(newSW);
-        }
-      });
-    });
-
-    reg.update();
-
-  }).catch(function(err) {
-    console.warn('[SW] Erro:', err);
+    regs.forEach(function(r) { r.unregister(); });
   });
-
-  var refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', function() {
-    if (!refreshing) { refreshing = true; window.location.reload(); }
+  caches.keys().then(function(keys) {
+    keys.forEach(function(k) { caches.delete(k); });
   });
+  // Escuta mensagem do SW kill-switch
+  navigator.serviceWorker.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'SW_DEACTIVATED') {
+      console.log('[SW] Desativado com sucesso.');
+    }
+  });
+  // Registra o SW kill-switch para limpar tudo
+  navigator.serviceWorker.register('/sw.js').catch(function(){});
 }
 
 function _mostrarBannerUpdate(newSW) {
