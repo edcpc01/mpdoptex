@@ -965,27 +965,34 @@ window.addEventListener('beforeinstallprompt', function(e){ e.preventDefault(); 
 async function installPWA() { if(!deferredPrompt)return; deferredPrompt.prompt(); var r=await deferredPrompt.userChoice; if(r.outcome==='accepted'){var btn=document.getElementById('btn-install');if(btn)btn.style.display='none';showToast('App instalado!');}deferredPrompt=null; }
 window.addEventListener('appinstalled', function(){ var btn=document.getElementById('btn-install'); if(btn)btn.style.display='none'; });
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').then(function(reg) {
+  // Desregistra SWs antigos problemáticos e limpa caches antes de registrar novo
+  navigator.serviceWorker.getRegistrations().then(function(regs) {
+    var promises = regs.map(function(r) { return r.unregister(); });
+    return Promise.all(promises);
+  }).then(function() {
+    return caches.keys();
+  }).then(function(keys) {
+    return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+  }).then(function() {
+    // Agora registra o SW limpo
+    return navigator.serviceWorker.register('/sw.js');
+  }).then(function(reg) {
 
-    // Detecta novo SW aguardando para ser ativado
     reg.addEventListener('updatefound', function() {
       var newSW = reg.installing;
       newSW.addEventListener('statechange', function() {
         if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
-          // Nova versão disponível — mostra banner
           _mostrarBannerUpdate(newSW);
         }
       });
     });
 
-    // Verifica update ao abrir o app
     reg.update();
 
   }).catch(function(err) {
-    console.warn('[SW] Registro falhou:', err);
+    console.warn('[SW] Erro:', err);
   });
 
-  // Reload automático quando novo SW assume controle
   var refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', function() {
     if (!refreshing) { refreshing = true; window.location.reload(); }
