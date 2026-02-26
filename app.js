@@ -218,11 +218,24 @@ async function doLogin() {
   var pass    = passEl  ? passEl.value : '';
   _clearErr();
   if (!email || !pass) { _showErr('Preencha e-mail e senha.'); return; }
+
+  // Verifica se Firebase inicializou
+  if (typeof firebase === 'undefined') {
+    _showErr('ERRO: Firebase SDK nao carregou. Verifique a conexao e recarregue a pagina.');
+    return;
+  }
+  if (!auth) {
+    _showErr('ERRO: Auth nao inicializado. Recarregue a pagina (F5).');
+    console.error('[doLogin] auth=null, usingFirebase='+usingFirebase+', _fbReady='+_fbReady);
+    return;
+  }
+
   _setBtnSubmit('Aguarde...', true);
   try {
     await auth.signInWithEmailAndPassword(email, pass);
   } catch(e) {
-    _showErr(traduzErro(e.code));
+    console.error('[doLogin] erro:', e.code, e.message);
+    _showErr(traduzErro(e.code) + ' [' + (e.code||e.message) + ']');
     _setBtnSubmit('Entrar', false);
   }
 }
