@@ -992,6 +992,9 @@ document.addEventListener('DOMContentLoaded', function() {
       if (ev.key === 'Enter') submitForm();
     });
   });
+
+  // Inicializa Firebase
+  initFirebase();
 });
 
 document.addEventListener('click', function(e) {
@@ -2670,7 +2673,3 @@ function switchProdTab(tab) {
   document.getElementById('prod-tab-pl').classList.toggle('active', tab==='pl');
 }
 
-// ── Inicializa Firebase ao carregar ──────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', function() {
-  initFirebase();
-});
