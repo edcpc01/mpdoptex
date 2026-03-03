@@ -974,6 +974,8 @@ function showToast(msg) {
 function toggleMenu() { var m=document.getElementById('menu-dropdown'); if(m) m.classList.toggle('open'); }
 // ── Vincula eventos dos botões de login ────────────────────────────────────
 document.addEventListener('DOMContentLoaded', function() {
+  // Le ?tear=N da URL antes do login (QR scan)
+  verificarQRScan();   //
   // Enter nos campos de login submete o formulário
   ['inp-email','inp-pass'].forEach(function(id) {
     var el = document.getElementById(id);
