@@ -1835,12 +1835,16 @@ function verificarQRScan() {
 function processarQRScan() {
   if (!window._qrTear) return;
   var tearNum = window._qrTear;
-  var idx = BASE_TEARES.findIndex(function(d){ return d.tear === tearNum; });
-  if (idx >= 0 && currentRole !== 'operador') {
-    showToast('QR Scan — Tear '+tearNum+'. Iniciando manutencao...');
-    setTimeout(function(){ iniciarManutencao(idx); }, 800);
-  }
   window._qrTear = null;
+  var idx = BASE_TEARES.findIndex(function(d){ return d.tear === tearNum; });
+  if (idx < 0) { showToast('Tear ' + tearNum + ' nao encontrado.'); return; }
+  if (currentRole === 'operador') { showToast('Sem permissao para iniciar manutencao.'); return; }
+  showToast('QR - Tear ' + tearNum + '. Abrindo checklist...');
+  setTimeout(function() {
+    if (manutsAtivas[idx]) { abrirChecklist(idx); }
+    else { iniciarManutencao(idx); }
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }, 1000);
 }
 
 // =============================================================================
