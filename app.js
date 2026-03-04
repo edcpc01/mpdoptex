@@ -905,7 +905,7 @@ function renderHistorico(lista) {
     var itens = 0;
     if (r.checklist) Object.values(r.checklist).forEach(function(item){ if(item&&(item.verif||item.ajuste||item.limpeza||item.lubrif||item.troca)) itens++; });
     var editadoInfo = r._editadoEm ? '<span style="color:var(--warn);font-size:.65rem">&#9998; Editado por '+r._editadoPor+' em '+new Date(r._editadoEm).toLocaleDateString('pt-BR')+' '+new Date(r._editadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</span>' : '';
-    var btnEditar = (currentRole === 'admin' && r._docId) ? '<button class="btn-editar-manut" onclick="abrirEditarManutencao(''+r._docId+'')" title="Editar manutencao">&#9998; Editar</button>' : '';
+    var btnEditar = (currentRole === 'admin' && r._docId) ? '<button class="btn-editar-manut" onclick="abrirEditarManutencao(\'' + r._docId + '\')" title="Editar manutencao">&#9998; Editar</button>' : '';
     return '<div class="hist-item">'+
       '<div class="hist-head"><span class="hist-tear">Tear '+r.tear+'</span><span class="hist-modelo">'+r.modelo+'</span><span class="hist-date">'+dtFmt+'</span>'+btnEditar+'</div>'+
       '<div class="hist-meta">'+
