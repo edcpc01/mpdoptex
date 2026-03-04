@@ -3,7 +3,7 @@
 // Regra de ouro: NUNCA intercepta requisicoes externas (Firebase, gstatic, etc.)
 // Apenas arquivos do proprio dominio sao cacheados.
 
-const CACHE = 'mp-v6efdaf96';
+const CACHE = 'mp-v6efdaf97';
 
 // Install: cacheia os arquivos do app para funcionar offline
 self.addEventListener('install', e => {
