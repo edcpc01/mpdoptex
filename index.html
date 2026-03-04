@@ -440,6 +440,35 @@ tbody td{padding:7px 10px;vertical-align:middle}
 @media(max-width:600px){.pdf-kpi-row-4{grid-template-columns:repeat(2,1fr)}.export-opcoes-grid,.export-btns{grid-template-columns:1fr}}
 
 .ultima-carga-info{font-size:.72rem;color:var(--muted);margin:4px 0 6px 24px;font-style:italic;transition:color .3s}
+
+/* ── EDITAR MANUTENÇÃO (Admin) ── */
+.btn-editar-manut{
+  margin-left:auto;background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.35);
+  color:var(--accent);font-family:'Barlow Condensed',sans-serif;font-weight:700;
+  font-size:.72rem;padding:3px 10px;border-radius:6px;cursor:pointer;
+  letter-spacing:.04em;transition:background .15s;white-space:nowrap;
+}
+.btn-editar-manut:hover{background:rgba(249,115,22,.28);}
+
+.edit-section{padding:14px 18px;border-bottom:1px solid var(--border);}
+.edit-section-title{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.78rem;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--accent);margin-bottom:10px;
+  display:flex;align-items:center;gap:6px;}
+.edit-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+@media(max-width:540px){.edit-grid-2{grid-template-columns:1fr;}}
+.edit-field{display:flex;flex-direction:column;gap:5px;}
+.edit-field label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+.edit-field input,.edit-field textarea{
+  background:var(--s2);border:1px solid var(--border);border-radius:7px;
+  color:var(--text);font-family:'Barlow',sans-serif;font-size:.88rem;padding:8px 10px;
+  transition:border-color .15s;
+}
+.edit-field input:focus,.edit-field textarea:focus{outline:none;border-color:var(--accent);background:#1f2d44;}
+.edit-field textarea{resize:vertical;min-height:72px;}
+.edit-audit-note{font-size:.72rem;color:var(--warn);background:rgba(234,179,8,.07);
+  border:1px solid rgba(234,179,8,.2);border-radius:7px;padding:8px 12px;margin:0 18px 14px;
+  display:flex;align-items:center;gap:6px;}
+
 </style>
 </head>
 <body>
@@ -674,6 +703,112 @@ tbody td{padding:7px 10px;vertical-align:middle}
       <button class="tab-btn" onclick="filtrarHistorico('semana',this)">Esta semana</button>
     </div>
     <div class="modal-body" id="hist-body"></div>
+  </div>
+</div>
+
+
+<!-- MODAL EDITAR MANUTENÇÃO -->
+<div class="modal-overlay" id="modal-edit-manut">
+  <div class="modal-box" style="max-width:860px">
+    <div class="modal-header">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <div>
+        <div class="modal-title">Editar Manutenção</div>
+        <div style="font-size:.68rem;color:var(--muted);margin-top:1px" id="edit-tear-num"></div>
+      </div>
+      <button class="modal-close" onclick="fecharEditarManutencao()" style="margin-left:auto">&#10005;</button>
+    </div>
+
+    <div class="edit-audit-note">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Alterações ficam registradas no Firestore com auditoria de quem editou e quando.
+    </div>
+
+    <div class="modal-body" style="padding:0">
+
+      <!-- Dados gerais -->
+      <div class="edit-section">
+        <div class="edit-section-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Dados Gerais
+        </div>
+        <div class="edit-grid-2">
+          <div class="edit-field">
+            <label>Início da manutenção</label>
+            <input type="datetime-local" id="edit-inicio">
+          </div>
+          <div class="edit-field">
+            <label>Fim da manutenção</label>
+            <input type="datetime-local" id="edit-fim">
+          </div>
+          <div class="edit-field">
+            <label>Técnico responsável</label>
+            <input type="text" id="edit-tecnico" placeholder="Nome do técnico">
+          </div>
+          <div class="edit-field" style="grid-column:1/-1">
+            <label>Observações</label>
+            <textarea id="edit-obs" placeholder="Observações da manutenção..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- Carga agulhas / platinas -->
+      <div class="edit-section" style="background:rgba(234,179,8,.03)">
+        <div class="edit-section-title" style="color:var(--warn)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Registro de Produção por Carga
+        </div>
+        <div class="edit-grid-2">
+          <div class="carga-item">
+            <label class="carga-lbl">
+              <input type="checkbox" id="edit-agulha-trocada" onchange="toggleEditCargaKg('agulha')">
+              <span>Carga completa de <strong>Agulhas</strong> trocada</span>
+            </label>
+            <div class="carga-kg-wrap" id="edit-agulha-kg-wrap" style="display:none">
+              <input type="number" id="edit-agulha-kg" class="carga-kg-inp" placeholder="kg produzidos" min="0" step="0.1">
+              <span class="carga-kg-unit">kg de malha produzidos com esta carga</span>
+            </div>
+          </div>
+          <div class="carga-item">
+            <label class="carga-lbl">
+              <input type="checkbox" id="edit-platina-trocada" onchange="toggleEditCargaKg('platina')">
+              <span>Carga completa de <strong>Platinas</strong> trocada</span>
+            </label>
+            <div class="carga-kg-wrap" id="edit-platina-kg-wrap" style="display:none">
+              <input type="number" id="edit-platina-kg" class="carga-kg-inp" placeholder="kg produzidos" min="0" step="0.1">
+              <span class="carga-kg-unit">kg de malha produzidos com esta carga</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Checklist -->
+      <div class="edit-section" style="padding-bottom:0">
+        <div class="edit-section-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          Checklist de Itens
+        </div>
+      </div>
+      <div class="cl-head" style="position:sticky;top:0;z-index:10">
+        <span>Item</span>
+        <span>Verif.</span>
+        <span>Ajuste</span>
+        <span>Limpeza</span>
+        <span>Lubrif.</span>
+        <span>Troca</span>
+        <span>Qtde</span>
+      </div>
+      <div id="edit-cl-body"></div>
+
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn-big btn-big-cancel" onclick="fecharEditarManutencao()">Cancelar</button>
+      <button class="btn-big btn-big-accent" id="edit-btn-salvar" onclick="salvarEdicaoManutencao()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:5px"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        &#10003; Salvar Alterações
+      </button>
+    </div>
   </div>
 </div>
 

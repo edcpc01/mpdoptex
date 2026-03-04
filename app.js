@@ -860,7 +860,7 @@ async function abrirHistorico() {
       snap = await histCol().limit(100).get();
     }
     _historicoTodos = [];
-    snap.forEach(function(doc) { _historicoTodos.push(doc.data()); });
+    snap.forEach(function(doc) { var d = doc.data(); d._docId = doc.id; _historicoTodos.push(d); });
     // Ordena no cliente
     _historicoTodos.sort(function(a,b){ return (b.inicio||'').localeCompare(a.inicio||''); });
     renderHistorico(_historicoTodos);
@@ -904,13 +904,16 @@ function renderHistorico(lista) {
     var durStr = h>0 ? pad(h)+'h '+pad(m)+'min' : pad(m)+'min '+pad(s)+'s';
     var itens = 0;
     if (r.checklist) Object.values(r.checklist).forEach(function(item){ if(item&&(item.verif||item.ajuste||item.limpeza||item.lubrif||item.troca)) itens++; });
+    var editadoInfo = r._editadoEm ? '<span style="color:var(--warn);font-size:.65rem">&#9998; Editado por '+r._editadoPor+' em '+new Date(r._editadoEm).toLocaleDateString('pt-BR')+' '+new Date(r._editadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</span>' : '';
+    var btnEditar = (currentRole === 'admin' && r._docId) ? '<button class="btn-editar-manut" onclick="abrirEditarManutencao(''+r._docId+'')" title="Editar manutencao">&#9998; Editar</button>' : '';
     return '<div class="hist-item">'+
-      '<div class="hist-head"><span class="hist-tear">Tear '+r.tear+'</span><span class="hist-modelo">'+r.modelo+'</span><span class="hist-date">'+dtFmt+'</span></div>'+
+      '<div class="hist-head"><span class="hist-tear">Tear '+r.tear+'</span><span class="hist-modelo">'+r.modelo+'</span><span class="hist-date">'+dtFmt+'</span>'+btnEditar+'</div>'+
       '<div class="hist-meta">'+
         '<span>&#9201; <strong>'+durStr+'</strong></span>'+
         '<span>&#128295; <strong>'+itens+'/'+CHECKLIST_ITENS.length+' itens</strong></span>'+
         '<span>&#128100; <strong>'+(r.tecnico||'-')+'</strong></span>'+
       '</div>'+
+      (editadoInfo ? '<div style="padding:4px 0">'+editadoInfo+'</div>' : '')+
       (r.obs ? '<div class="hist-obs">'+r.obs+'</div>' : '')+
     '</div>';
   }).join('');
@@ -2668,3 +2671,164 @@ function switchProdTab(tab) {
   document.getElementById('prod-tab-pl').classList.toggle('active', tab==='pl');
 }
 
+
+// =============================================================================
+//  EDITAR MANUTENÇÃO REALIZADA (Admin only)
+// =============================================================================
+var _editDocId = null;
+var _editRegistro = null;
+
+async function abrirEditarManutencao(docId) {
+  if (currentRole !== 'admin') { showToast('Sem permissao.'); return; }
+  if (!db || !currentUser) return;
+
+  _editDocId = docId;
+
+  // Busca o documento
+  try {
+    var snap = await histCol().doc(docId).get();
+    if (!snap.exists) { showToast('Registro nao encontrado.'); return; }
+    _editRegistro = snap.data();
+    _editRegistro._docId = docId;
+  } catch(e) {
+    showToast('Erro ao buscar: ' + e.message);
+    return;
+  }
+
+  var r = _editRegistro;
+  var modal = document.getElementById('modal-edit-manut');
+  if (!modal) return;
+
+  // Preenche campos do modal
+  document.getElementById('edit-tear-num').textContent = 'Tear ' + r.tear + ' — ' + r.modelo;
+
+  // Data/hora início
+  var dtIni = r.inicio ? r.inicio.slice(0,16) : '';
+  document.getElementById('edit-inicio').value = dtIni;
+
+  // Data/hora fim
+  var dtFim = r.fim ? r.fim.slice(0,16) : '';
+  document.getElementById('edit-fim').value = dtFim;
+
+  // Técnico
+  document.getElementById('edit-tecnico').value = r.tecnico || '';
+
+  // Observações
+  document.getElementById('edit-obs').value = r.obs || '';
+
+  // Carga agulhas
+  var agTrocada = r.cargaAgulha && r.cargaAgulha.trocada;
+  document.getElementById('edit-agulha-trocada').checked = !!agTrocada;
+  document.getElementById('edit-agulha-kg').value = agTrocada ? (r.cargaAgulha.kg || '') : '';
+  document.getElementById('edit-agulha-kg-wrap').style.display = agTrocada ? 'flex' : 'none';
+
+  // Carga platinas
+  var plTrocada = r.cargaPlatina && r.cargaPlatina.trocada;
+  document.getElementById('edit-platina-trocada').checked = !!plTrocada;
+  document.getElementById('edit-platina-kg').value = plTrocada ? (r.cargaPlatina.kg || '') : '';
+  document.getElementById('edit-platina-kg-wrap').style.display = plTrocada ? 'flex' : 'none';
+
+  // Checklist
+  _renderEditChecklist(r.checklist || {});
+
+  modal.classList.add('open');
+}
+
+function _renderEditChecklist(checklist) {
+  var body = document.getElementById('edit-cl-body');
+  if (!body) return;
+  body.innerHTML = '';
+  CHECKLIST_ITENS.forEach(function(item, idx) {
+    var saved = checklist[idx] || {};
+    var row = document.createElement('div');
+    row.className = 'cl-row';
+    row.innerHTML =
+      '<div class="cl-item-name">' + item + '</div>' +
+      '<div class="cl-check"><input type="checkbox" id="ecl-verif-'+idx+'"   ' + (saved.verif   ? 'checked' : '') + '></div>' +
+      '<div class="cl-check"><input type="checkbox" id="ecl-ajuste-'+idx+'"  ' + (saved.ajuste  ? 'checked' : '') + '></div>' +
+      '<div class="cl-check"><input type="checkbox" id="ecl-limpeza-'+idx+'" ' + (saved.limpeza ? 'checked' : '') + '></div>' +
+      '<div class="cl-check"><input type="checkbox" id="ecl-lubrif-'+idx+'"  ' + (saved.lubrif  ? 'checked' : '') + '></div>' +
+      '<div class="cl-check"><input type="checkbox" id="ecl-troca-'+idx+'"   ' + (saved.troca   ? 'checked' : '') + '></div>' +
+      '<div><input class="cl-qty" type="number" id="ecl-qty-'+idx+'" value="' + (saved.qtde || '') + '" placeholder="-" min="0"></div>';
+    body.appendChild(row);
+  });
+}
+
+function toggleEditCargaKg(tipo) {
+  var wrap = document.getElementById('edit-' + tipo + '-kg-wrap');
+  var chk  = document.getElementById('edit-' + tipo + '-trocada');
+  if (wrap && chk) wrap.style.display = chk.checked ? 'flex' : 'none';
+}
+
+function fecharEditarManutencao() {
+  var modal = document.getElementById('modal-edit-manut');
+  if (modal) modal.classList.remove('open');
+  _editDocId = null;
+  _editRegistro = null;
+}
+
+async function salvarEdicaoManutencao() {
+  if (!_editDocId || !db || !currentUser) return;
+  if (currentRole !== 'admin') { showToast('Sem permissao.'); return; }
+
+  var btnSalvar = document.getElementById('edit-btn-salvar');
+  if (btnSalvar) { btnSalvar.disabled = true; btnSalvar.textContent = 'Salvando...'; }
+
+  try {
+    // Coleta checklist
+    var checklist = {};
+    CHECKLIST_ITENS.forEach(function(_, idx) {
+      checklist[idx] = {
+        verif:   !!(document.getElementById('ecl-verif-'+idx)||{}).checked,
+        ajuste:  !!(document.getElementById('ecl-ajuste-'+idx)||{}).checked,
+        limpeza: !!(document.getElementById('ecl-limpeza-'+idx)||{}).checked,
+        lubrif:  !!(document.getElementById('ecl-lubrif-'+idx)||{}).checked,
+        troca:   !!(document.getElementById('ecl-troca-'+idx)||{}).checked,
+        qtde:    ((document.getElementById('ecl-qty-'+idx)||{}).value || '')
+      };
+    });
+
+    // Coleta cargas
+    var agTrocada = document.getElementById('edit-agulha-trocada').checked;
+    var plTrocada = document.getElementById('edit-platina-trocada').checked;
+    var cargaAgulha  = agTrocada ? { trocada: true, kg: parseFloat(document.getElementById('edit-agulha-kg').value) || 0 } : null;
+    var cargaPlatina = plTrocada ? { trocada: true, kg: parseFloat(document.getElementById('edit-platina-kg').value) || 0 } : null;
+
+    // Calcula duração a partir do início/fim editados
+    var inicioVal = document.getElementById('edit-inicio').value;
+    var fimVal    = document.getElementById('edit-fim').value;
+    var duracaoSeg = _editRegistro.duracaoSeg || 0;
+    if (inicioVal && fimVal) {
+      var tsIni = new Date(inicioVal).getTime();
+      var tsFim = new Date(fimVal).getTime();
+      if (tsFim > tsIni) duracaoSeg = Math.round((tsFim - tsIni) / 1000);
+    }
+
+    var atualizacao = {
+      tecnico:      document.getElementById('edit-tecnico').value.trim() || _editRegistro.tecnico,
+      obs:          document.getElementById('edit-obs').value.trim(),
+      inicio:       inicioVal ? inicioVal + ':00' : _editRegistro.inicio,
+      fim:          fimVal    ? fimVal    + ':00' : _editRegistro.fim,
+      duracaoSeg:   duracaoSeg,
+      checklist:    checklist,
+      cargaAgulha:  cargaAgulha,
+      cargaPlatina: cargaPlatina,
+      // Auditoria
+      _editadoEm:   isoLocalBR(new Date()),
+      _editadoPor:  currentUser.displayName || currentUser.email,
+      _editadoUid:  currentUser.uid
+    };
+
+    await histCol().doc(_editDocId).update(atualizacao);
+
+    showToast('Manutenção atualizada com sucesso!');
+    fecharEditarManutencao();
+
+    // Recarrega histórico para refletir edição
+    await abrirHistorico();
+
+  } catch(e) {
+    showToast('Erro ao salvar: ' + e.message);
+    if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = '✓ Salvar Alterações'; }
+  }
+}
