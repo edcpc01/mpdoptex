@@ -469,6 +469,54 @@ tbody td{padding:7px 10px;vertical-align:middle}
   border:1px solid rgba(234,179,8,.2);border-radius:7px;padding:8px 12px;margin:0 18px 14px;
   display:flex;align-items:center;gap:6px;}
 
+
+/* ── FILTRO TEAR NO HISTÓRICO ── */
+.hist-filtros{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--s2);flex-wrap:wrap}
+.hist-filtros label{font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+.hist-tear-sel{background:var(--surface);border:1px solid var(--border);border-radius:7px;color:var(--text);font-family:'Barlow',sans-serif;font-size:.82rem;padding:6px 10px;cursor:pointer;min-width:130px}
+.hist-tear-sel:focus{outline:none;border-color:var(--accent)}
+
+/* ── EXCLUIR MANUTENÇÃO ── */
+.btn-excluir-manut{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:var(--danger);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.72rem;padding:3px 10px;border-radius:6px;cursor:pointer;letter-spacing:.04em;transition:background .15s;white-space:nowrap}
+.btn-excluir-manut:hover{background:rgba(239,68,68,.28)}
+
+/* Modal confirmação exclusão */
+.modal-confirmar{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:600;display:none;align-items:center;justify-content:center;padding:20px}
+.modal-confirmar.open{display:flex}
+.confirm-box{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 28px 24px;max-width:380px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.confirm-icon{font-size:2.4rem;margin-bottom:12px}
+.confirm-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.3rem;color:var(--danger);margin-bottom:6px}
+.confirm-desc{font-size:.82rem;color:var(--muted);margin-bottom:22px;line-height:1.5}
+.confirm-btns{display:flex;gap:10px}
+.btn-confirmar-danger{flex:1;background:var(--danger);color:#fff;border:none;border-radius:8px;padding:11px;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:.95rem;cursor:pointer;transition:opacity .15s}
+.btn-confirmar-danger:hover{opacity:.85}
+.btn-confirmar-cancel{flex:1;background:var(--s3);color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:11px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.95rem;cursor:pointer}
+
+/* ── FOTOS NA MANUTENÇÃO ── */
+.modal-fotos{padding:14px 18px;border-top:1px solid var(--border);background:rgba(56,189,248,.03)}
+.fotos-title{display:flex;align-items:center;gap:7px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;color:var(--info);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+.fotos-btns{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.btn-foto{display:flex;align-items:center;gap:6px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.3);color:var(--info);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.82rem;padding:7px 14px;border-radius:8px;cursor:pointer;transition:background .15s}
+.btn-foto:hover{background:rgba(56,189,248,.25)}
+.fotos-preview{display:flex;gap:8px;flex-wrap:wrap;min-height:20px}
+.foto-thumb-wrap{position:relative}
+.foto-thumb{width:72px;height:72px;object-fit:cover;border-radius:7px;border:2px solid var(--border);cursor:pointer;transition:border-color .15s}
+.foto-thumb:hover{border-color:var(--info)}
+.foto-del-btn{position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:.6rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+
+/* ── FOTO AMPLIADA OVERLAY ── */
+.foto-ampliada-overlay{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:700;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.foto-ampliada-overlay img{max-width:94vw;max-height:80vh;border-radius:10px;object-fit:contain;box-shadow:0 8px 40px rgba(0,0,0,.8)}
+#foto-nav{display:none;align-items:center;gap:16px}
+.btn-nav-foto{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:8px 18px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:1rem;cursor:pointer}
+.btn-nav-foto:hover{background:rgba(255,255,255,.3)}
+.btn-fechar-foto{position:fixed;top:16px;right:16px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:7px 14px;font-size:.9rem;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700}
+
+/* ── FOTOS NO HISTÓRICO ── */
+.hist-fotos{margin-top:4px}
+.btn-ver-fotos{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--info);font-size:.72rem;padding:3px 10px;border-radius:6px;cursor:pointer;font-family:'Barlow',sans-serif;transition:background .15s}
+.btn-ver-fotos:hover{background:rgba(56,189,248,.25)}
+
 </style>
 </head>
 <body>
@@ -679,6 +727,30 @@ tbody td{padding:7px 10px;vertical-align:middle}
       </div>
     </div>
 
+    <!-- SEÇÃO FOTOS -->
+    <div class="modal-fotos" id="cl-fotos-section">
+      <div class="fotos-title">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        Fotos da Manutenção
+      </div>
+      <div class="fotos-btns">
+        <button class="btn-foto" onclick="abrirCamera()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          Tirar Foto
+        </button>
+        <button class="btn-foto" onclick="abrirGaleria()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          Galeria
+        </button>
+      </div>
+      <div class="fotos-preview" id="fotos-preview">
+        <span style="color:var(--muted);font-size:.75rem">Nenhuma foto adicionada</span>
+      </div>
+      <!-- inputs ocultos para câmera e galeria -->
+      <input type="file" id="input-foto-camera"  accept="image/*" capture="environment" style="display:none" onchange="capturarFoto(this)">
+      <input type="file" id="input-foto-galeria" accept="image/*"                       style="display:none" onchange="capturarFoto(this)">
+    </div>
+
     <div class="modal-footer">
       <button class="btn-big btn-big-cancel" onclick="fecharChecklist()">Minimizar</button>
       <button class="btn-big btn-big-ok" onclick="finalizarManutencao()">
@@ -698,9 +770,16 @@ tbody td{padding:7px 10px;vertical-align:middle}
       <button class="modal-close" onclick="fecharHistorico()" style="margin-left:auto">&#10005;</button>
     </div>
     <div class="tab-bar">
-      <button class="tab-btn active" onclick="filtrarHistorico('todos',this)">Todos</button>
-      <button class="tab-btn" onclick="filtrarHistorico('mes',this)">Este mes</button>
-      <button class="tab-btn" onclick="filtrarHistorico('semana',this)">Esta semana</button>
+      <button class="tab-btn tab-btn-tempo active" onclick="filtrarHistorico('todos',this)">Todos</button>
+      <button class="tab-btn tab-btn-tempo" onclick="filtrarHistorico('mes',this)">Este mes</button>
+      <button class="tab-btn tab-btn-tempo" onclick="filtrarHistorico('semana',this)">Esta semana</button>
+    </div>
+    <div class="hist-filtros">
+      <label>&#128249; Filtrar por tear:</label>
+      <select class="hist-tear-sel" id="hist-tear-sel" onchange="filtrarHistoricoTear(this.value)">
+        <option value="">Todos os teares</option>
+      </select>
+      <span id="hist-count" style="margin-left:auto;font-size:.72rem;color:var(--muted)"></span>
     </div>
     <div class="modal-body" id="hist-body"></div>
   </div>
@@ -809,6 +888,34 @@ tbody td{padding:7px 10px;vertical-align:middle}
         &#10003; Salvar Alterações
       </button>
     </div>
+  </div>
+</div>
+
+
+<!-- MODAL CONFIRMAR EXCLUSÃO -->
+<div class="modal-confirmar" id="modal-confirmar-excluir">
+  <div class="confirm-box">
+    <div class="confirm-icon">&#128465;</div>
+    <div class="confirm-title">Excluir Manutenção?</div>
+    <div class="confirm-desc">
+      Você está prestes a excluir permanentemente o registro de manutenção do <strong id="excluir-tear-info"></strong>.<br>
+      Esta ação <strong>não pode ser desfeita</strong>.
+    </div>
+    <div class="confirm-btns">
+      <button class="btn-confirmar-cancel" onclick="fecharConfirmarExcluir()">Cancelar</button>
+      <button class="btn-confirmar-danger" id="btn-confirmar-excluir">&#128465; Sim, excluir</button>
+    </div>
+  </div>
+</div>
+
+<!-- FOTO AMPLIADA OVERLAY -->
+<div class="foto-ampliada-overlay" id="foto-ampliada-overlay" onclick="fecharFotoAmpliada()">
+  <button class="btn-fechar-foto" onclick="fecharFotoAmpliada()">&#10005; Fechar</button>
+  <img id="foto-ampliada-img" src="" alt="Foto ampliada" onclick="event.stopPropagation()">
+  <div id="foto-nav" onclick="event.stopPropagation()">
+    <button class="btn-nav-foto" onclick="navFoto(-1)">&#8592; Anterior</button>
+    <span id="foto-nav-info" style="color:#fff;font-family:'Barlow Condensed',sans-serif;font-size:1rem"></span>
+    <button class="btn-nav-foto" onclick="navFoto(1)">Próxima &#8594;</button>
   </div>
 </div>
 

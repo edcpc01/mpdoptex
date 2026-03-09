@@ -558,7 +558,8 @@ function iniciarManutencao(i) {
     startTime:     Date.now(),
     timerInterval: null,
     checklist:     {},
-    obs:           ''
+    obs:           '',
+    fotos:         []
   };
 
   var btnW = document.getElementById('btn-wrench-'+i);
@@ -777,6 +778,9 @@ async function finalizarManutencao() {
     kg: parseFloat((platinaKg && platinaKg.value) || '0') || 0
   } : null;
 
+  // Captura fotos
+  var fotos = (manut.fotos && manut.fotos.length) ? manut.fotos.slice() : [];
+
   // Monta registro
   var registro = {
     tearIndex:     i,
@@ -789,7 +793,8 @@ async function finalizarManutencao() {
     obs:           obs,
     checklist:     JSON.parse(JSON.stringify(manut.checklist)),
     cargaAgulha:   cargaAgulha,
-    cargaPlatina:  cargaPlatina
+    cargaPlatina:  cargaPlatina,
+    fotos:         fotos
   };
 
   // Salva no Firestore
@@ -863,7 +868,8 @@ async function abrirHistorico() {
     snap.forEach(function(doc) { var d = doc.data(); d._docId = doc.id; _historicoTodos.push(d); });
     // Ordena no cliente
     _historicoTodos.sort(function(a,b){ return (b.inicio||'').localeCompare(a.inicio||''); });
-    renderHistorico(_historicoTodos);
+    _popularSelectTeares();
+    _aplicarFiltrosHistorico();
   } catch(e) {
     console.error('[Historico] erro:', e);
     document.getElementById('hist-body').innerHTML =
@@ -873,20 +879,42 @@ async function abrirHistorico() {
 
 function fecharHistorico() { document.getElementById('modal-historico').classList.remove('open'); }
 
+var _filtroTempo = 'todos';
+var _filtroTear  = '';
+
 function filtrarHistorico(filtro, btn) {
-  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn-tempo').forEach(function(b){ b.classList.remove('active'); });
   if (btn) btn.classList.add('active');
+  _filtroTempo = filtro;
+  _aplicarFiltrosHistorico();
+}
+
+function filtrarHistoricoTear(val) {
+  _filtroTear = val;
+  _aplicarFiltrosHistorico();
+}
+
+function _aplicarFiltrosHistorico() {
   var agora = nowBR();
   var dados = _historicoTodos;
-  if (filtro === 'mes') {
-    dados = _historicoTodos.filter(function(r) {
+
+  // Filtro de período
+  if (_filtroTempo === 'mes') {
+    dados = dados.filter(function(r) {
       var d = new Date(r.inicio);
       return d.getMonth()===agora.getMonth() && d.getFullYear()===agora.getFullYear();
     });
-  } else if (filtro === 'semana') {
+  } else if (_filtroTempo === 'semana') {
     var ini = new Date(agora); ini.setDate(agora.getDate()-agora.getDay()); ini.setHours(0,0,0,0);
-    dados = _historicoTodos.filter(function(r){ return new Date(r.inicio) >= ini; });
+    dados = dados.filter(function(r){ return new Date(r.inicio) >= ini; });
   }
+
+  // Filtro por tear
+  if (_filtroTear && _filtroTear !== '') {
+    var tearNum = parseInt(_filtroTear);
+    dados = dados.filter(function(r){ return r.tear === tearNum; });
+  }
+
   renderHistorico(dados);
 }
 
@@ -896,6 +924,10 @@ function renderHistorico(lista) {
     body.innerHTML = '<div class="empty-state"><p>Nenhuma manutencao registrada neste periodo.</p></div>';
     return;
   }
+  // Atualiza contador
+  var countEl = document.getElementById('hist-count');
+  if (countEl) countEl.textContent = lista.length + ' registro' + (lista.length !== 1 ? 's' : '');
+
   body.innerHTML = lista.map(function(r) {
     var dt    = new Date(r.inicio);
     var dtFmt = dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -905,9 +937,10 @@ function renderHistorico(lista) {
     var itens = 0;
     if (r.checklist) Object.values(r.checklist).forEach(function(item){ if(item&&(item.verif||item.ajuste||item.limpeza||item.lubrif||item.troca)) itens++; });
     var editadoInfo = r._editadoEm ? '<span style="color:var(--warn);font-size:.65rem">&#9998; Editado por '+r._editadoPor+' em '+new Date(r._editadoEm).toLocaleDateString('pt-BR')+' '+new Date(r._editadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</span>' : '';
-    var btnEditar = (currentRole === 'admin' && r._docId) ? '<button class="btn-editar-manut" onclick="abrirEditarManutencao(\'' + r._docId + '\')" title="Editar manutencao">&#9998; Editar</button>' : '';
+    var btnEditar  = (currentRole === 'admin' && r._docId) ? '<button class="btn-editar-manut" onclick="abrirEditarManutencao(\'' + r._docId + '\')" title="Editar manutencao">&#9998; Editar</button>' : '';
+    var btnExcluir = (currentRole === 'admin' && r._docId) ? '<button class="btn-excluir-manut" onclick="confirmarExcluirManutencao(\'' + r._docId + '\','+r.tear+')" title="Excluir registro">&#128465; Excluir</button>' : '';
     return '<div class="hist-item">'+
-      '<div class="hist-head"><span class="hist-tear">Tear '+r.tear+'</span><span class="hist-modelo">'+r.modelo+'</span><span class="hist-date">'+dtFmt+'</span>'+btnEditar+'</div>'+
+      '<div class="hist-head"><span class="hist-tear">Tear '+r.tear+'</span><span class="hist-modelo">'+r.modelo+'</span><span class="hist-date">'+dtFmt+'</span>'+btnEditar+btnExcluir+'</div>'+
       '<div class="hist-meta">'+
         '<span>&#9201; <strong>'+durStr+'</strong></span>'+
         '<span>&#128295; <strong>'+itens+'/'+CHECKLIST_ITENS.length+' itens</strong></span>'+
@@ -915,6 +948,7 @@ function renderHistorico(lista) {
       '</div>'+
       (editadoInfo ? '<div style="padding:4px 0">'+editadoInfo+'</div>' : '')+
       (r.obs ? '<div class="hist-obs">'+r.obs+'</div>' : '')+
+      (r.fotos && r.fotos.length ? '<div class="hist-fotos"><button class="btn-ver-fotos" onclick="verFotosHistorico(\''+r._docId+'\')">&#128247; '+r.fotos.length+' foto'+(r.fotos.length>1?'s':'')+' anexada'+(r.fotos.length>1?'s':'')+'</button></div>' : '')+
     '</div>';
   }).join('');
 }
@@ -2831,4 +2865,183 @@ async function salvarEdicaoManutencao() {
     showToast('Erro ao salvar: ' + e.message);
     if (btnSalvar) { btnSalvar.disabled = false; btnSalvar.textContent = '✓ Salvar Alterações'; }
   }
+}
+
+// =============================================================================
+//  EXCLUIR MANUTENÇÃO (Admin only)
+// =============================================================================
+function confirmarExcluirManutencao(docId, tearNum) {
+  if (currentRole !== 'admin') { showToast('Sem permissao.'); return; }
+  var modal = document.getElementById('modal-confirmar-excluir');
+  if (!modal) return;
+  document.getElementById('excluir-tear-info').textContent = 'Tear ' + tearNum;
+  document.getElementById('btn-confirmar-excluir').onclick = function() {
+    _executarExcluirManutencao(docId, tearNum);
+  };
+  modal.classList.add('open');
+}
+
+function fecharConfirmarExcluir() {
+  var modal = document.getElementById('modal-confirmar-excluir');
+  if (modal) modal.classList.remove('open');
+}
+
+async function _executarExcluirManutencao(docId, tearNum) {
+  if (!db || !currentUser) return;
+  var btn = document.getElementById('btn-confirmar-excluir');
+  if (btn) { btn.disabled = true; btn.textContent = 'Excluindo...'; }
+  try {
+    await histCol().doc(docId).delete();
+    fecharConfirmarExcluir();
+    showToast('Manutenção do Tear ' + tearNum + ' excluída.');
+    // Remove da lista local e re-renderiza sem recarregar do Firestore
+    _historicoTodos = _historicoTodos.filter(function(r){ return r._docId !== docId; });
+    _aplicarFiltrosHistorico();
+  } catch(e) {
+    showToast('Erro ao excluir: ' + e.message);
+    if (btn) { btn.disabled = false; btn.textContent = 'Sim, excluir'; }
+  }
+}
+
+// =============================================================================
+//  FOTOS NA MANUTENÇÃO
+//  Armazena base64 comprimido (JPEG 60%, max 1200px) no Firestore
+//  Limite prático: 3-5 fotos por manutenção (~50-80kb cada)
+// =============================================================================
+function abrirCamera() {
+  document.getElementById('input-foto-camera').click();
+}
+
+function abrirGaleria() {
+  document.getElementById('input-foto-galeria').click();
+}
+
+async function capturarFoto(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  input.value = ''; // reset para permitir mesma foto novamente
+
+  if (clTearIndex === null || !manutsAtivas[clTearIndex]) {
+    showToast('Inicie uma manutenção antes de tirar fotos.');
+    return;
+  }
+
+  try {
+    var base64 = await _comprimirImagem(file, 1200, 0.60);
+    manutsAtivas[clTearIndex].fotos.push({
+      data:     base64,
+      nome:     file.name,
+      tamanho:  file.size,
+      hora:     isoLocalBR(new Date())
+    });
+    _renderFotosPreview(clTearIndex);
+    showToast('Foto adicionada (' + manutsAtivas[clTearIndex].fotos.length + ')');
+  } catch(e) {
+    showToast('Erro ao processar foto: ' + e.message);
+  }
+}
+
+function _comprimirImagem(file, maxPx, qualidade) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      var img = new Image();
+      img.onload = function() {
+        var w = img.width, h = img.height;
+        if (w > maxPx || h > maxPx) {
+          if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; }
+          else       { w = Math.round(w * maxPx / h); h = maxPx; }
+        }
+        var canvas = document.createElement('canvas');
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', qualidade));
+      };
+      img.onerror = reject;
+      img.src = ev.target.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+function _renderFotosPreview(tearIdx) {
+  var container = document.getElementById('fotos-preview');
+  if (!container) return;
+  var fotos = (manutsAtivas[tearIdx] && manutsAtivas[tearIdx].fotos) || [];
+  if (!fotos.length) {
+    container.innerHTML = '<span style="color:var(--muted);font-size:.75rem">Nenhuma foto adicionada</span>';
+    return;
+  }
+  container.innerHTML = fotos.map(function(f, idx) {
+    return '<div class="foto-thumb-wrap">'+
+      '<img src="'+f.data+'" class="foto-thumb" onclick="verFotoAmpliada('+tearIdx+','+idx+')">'+
+      '<button class="foto-del-btn" onclick="removerFoto('+tearIdx+','+idx+')" title="Remover">&#10005;</button>'+
+    '</div>';
+  }).join('');
+}
+
+function removerFoto(tearIdx, idx) {
+  if (!manutsAtivas[tearIdx]) return;
+  manutsAtivas[tearIdx].fotos.splice(idx, 1);
+  _renderFotosPreview(tearIdx);
+}
+
+function verFotoAmpliada(tearIdx, idx) {
+  var fotos = (manutsAtivas[tearIdx] && manutsAtivas[tearIdx].fotos) || [];
+  var f = fotos[idx]; if (!f) return;
+  var overlay = document.getElementById('foto-ampliada-overlay');
+  var img     = document.getElementById('foto-ampliada-img');
+  if (overlay && img) { img.src = f.data; overlay.style.display = 'flex'; }
+}
+
+function fecharFotoAmpliada() {
+  var overlay = document.getElementById('foto-ampliada-overlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// Exibe fotos no histórico (renderHistorico já mostra o thumbnail)
+function verFotosHistorico(docId) {
+  var r = _historicoTodos.find(function(x){ return x._docId === docId; });
+  if (!r || !r.fotos || !r.fotos.length) { showToast('Sem fotos neste registro.'); return; }
+  var overlay = document.getElementById('foto-ampliada-overlay');
+  var img     = document.getElementById('foto-ampliada-img');
+  // Mostra primeira; navegação via botões
+  window._fotoViewList  = r.fotos;
+  window._fotoViewIndex = 0;
+  if (overlay && img) {
+    img.src = r.fotos[0].data;
+    document.getElementById('foto-nav-info').textContent = '1 / ' + r.fotos.length;
+    document.getElementById('foto-nav').style.display = r.fotos.length > 1 ? 'flex' : 'none';
+    overlay.style.display = 'flex';
+  }
+}
+
+function navFoto(dir) {
+  if (!window._fotoViewList) return;
+  window._fotoViewIndex = (window._fotoViewIndex + dir + window._fotoViewList.length) % window._fotoViewList.length;
+  document.getElementById('foto-ampliada-img').src = window._fotoViewList[window._fotoViewIndex].data;
+  document.getElementById('foto-nav-info').textContent = (window._fotoViewIndex+1) + ' / ' + window._fotoViewList.length;
+}
+
+
+// Popula o <select> de teares no histórico com os teares que têm registros
+function _popularSelectTeares() {
+  var sel = document.getElementById('hist-tear-sel');
+  if (!sel) return;
+  var tearsComRegistro = [];
+  _historicoTodos.forEach(function(r) {
+    if (r.tear && tearsComRegistro.indexOf(r.tear) === -1) tearsComRegistro.push(r.tear);
+  });
+  tearsComRegistro.sort(function(a,b){ return a - b; });
+  // Preserva valor selecionado
+  var valorAtual = sel.value;
+  sel.innerHTML = '<option value="">Todos os teares</option>';
+  tearsComRegistro.forEach(function(t) {
+    var opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = 'Tear ' + t;
+    if (String(t) === valorAtual) opt.selected = true;
+    sel.appendChild(opt);
+  });
 }
