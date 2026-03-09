@@ -25,7 +25,8 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html{height:100%}
-body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;font-weight:300;min-height:100%;overscroll-behavior:none}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;font-weight:300;min-height:100%;overscroll-behavior:none;overflow-x:hidden}
+#screen-app{overflow-x:hidden;max-width:100vw}
 
 /* LOGIN */
 #screen-login{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:radial-gradient(ellipse at 60% 20%,rgba(249,115,22,.12) 0%,transparent 60%),var(--bg)}
@@ -81,7 +82,7 @@ header{background:var(--surface);border-bottom:3px solid var(--accent);padding:c
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .panel-head{background:var(--s2);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;letter-spacing:.07em;text-transform:uppercase;color:var(--accent)}
 .hint{margin-left:auto;font-size:.65rem;color:var(--muted);font-family:'Barlow',sans-serif;font-weight:300;letter-spacing:0;text-transform:none}
-.tbl-scroll{overflow-x:hidden;-webkit-overflow-scrolling:touch}
+.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
 table{width:100%;border-collapse:collapse;font-size:.78rem}
 thead tr{background:var(--s3);border-bottom:2px solid var(--accent)}
 thead th{padding:8px 10px;text-align:left;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
@@ -90,70 +91,75 @@ tbody tr{border-bottom:1px solid var(--border);transition:background .12s}
 tbody tr:active{background:rgba(249,115,22,.06)}
 tbody td{padding:7px 10px;vertical-align:middle}
 
-/* ── LAYOUT MOBILE — tabela vira cards ── */
+/* ── LAYOUT MOBILE — cards sem overflow lateral ── */
 @media(max-width:640px){
-  .tbl-scroll{overflow-x:hidden}
-  table,thead,tbody,tr,td{display:block;width:100%}
-  thead{display:none}  /* esconde cabeçalho — info fica inline nos cards */
+  /* ── esconde colunas que não cabem ── */
+  .hide-mobile{display:none!important}
+
+  /* ── tabela vira cards ── */
+  .tbl-scroll{overflow:hidden}
+  table{display:block;width:100%}
+  thead{display:none}
+  tbody{display:block;width:100%}
   tbody tr{
     display:grid;
-    grid-template-columns:40px 1fr auto auto;
+    grid-template-columns:38px minmax(0,1fr) auto auto;
     grid-template-rows:auto auto;
     align-items:center;
-    gap:0 8px;
+    column-gap:8px;
     padding:10px 12px;
     border-bottom:1px solid var(--border);
-    position:relative;
+    width:100%;
+    box-sizing:border-box;
+    min-width:0;
   }
-  /* Col 1: número do tear */
-  tbody td:nth-child(1){grid-column:1;grid-row:1/3;display:flex;align-items:center;justify-content:center}
-  /* Col 2: modelo */
-  tbody td:nth-child(2){grid-column:2;grid-row:1;padding:0;font-size:.72rem;color:var(--muted)}
-  /* Col 3 (RPM): some */
+  /* Tear nº */
+  tbody td:nth-child(1){grid-column:1;grid-row:1/3;display:flex;align-items:center;justify-content:center;padding:0}
+  /* Modelo */
+  tbody td:nth-child(2){grid-column:2;grid-row:1;padding:0 0 2px;font-size:.72rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* RPM — some */
   tbody td:nth-child(3){display:none!important}
-  /* Col 4 (Setup): some */
+  /* Setup — some */
   tbody td:nth-child(4){display:none!important}
-  /* Col 5 (chave+timer): posição absoluta topo-direita linha 1 */
-  tbody td:nth-child(5){grid-column:3;grid-row:1;padding:0;display:flex;align-items:center;gap:4px}
-  /* Col 6 (Data Manut): linha 2 col 2 — input date compacto */
-  tbody td:nth-child(6){grid-column:2;grid-row:2;padding:2px 0}
-  /* Col 7 (Realizado): some */
+  /* Chave + timer */
+  tbody td:nth-child(5){grid-column:3;grid-row:1;padding:0;display:flex;align-items:center;gap:4px;justify-content:flex-end}
+  /* Data manut */
+  tbody td:nth-child(6){grid-column:2;grid-row:2;padding:0}
+  /* Realizado — some */
   tbody td:nth-child(7){display:none!important}
-  /* Col 8 (Real voltas): some */
+  /* Real voltas — some */
   tbody td:nth-child(8){display:none!important}
-  /* Col 9 (Saldo): some */
+  /* Saldo — some */
   tbody td:nth-child(9){display:none!important}
-  /* Col 10 (Progresso): some */
+  /* Progresso — some */
   tbody td:nth-child(10){display:none!important}
-  /* Col 11 (Proxima): linha 1 col 4 */
-  tbody td:nth-child(11){grid-column:4;grid-row:1;padding:0;text-align:right}
-  /* Col 12 (Status): linha 2 col 3+4 */
-  tbody td:nth-child(12){grid-column:3/5;grid-row:2;padding:2px 0;text-align:right}
-  /* Col 13 (btn finish): some — o btn chave já abre checklist */
+  /* Próxima */
+  tbody td:nth-child(11){grid-column:4;grid-row:1;padding:0;text-align:right;min-width:0}
+  /* Status */
+  tbody td:nth-child(12){grid-column:3/5;grid-row:2;padding:0;text-align:right}
+  /* Btn finish */
   tbody td:nth-child(13){display:none!important}
 
-  /* Ajustes nos inputs de data no card */
-  .input-date{font-size:.72rem;padding:4px 7px;min-width:0;width:100%}
-  .cell-input{font-size:.72rem;padding:4px 7px}
+  /* input de data compacto */
+  .input-date{font-size:.73rem;padding:4px 7px;min-width:0;width:100%;max-width:140px}
 
-  /* tear-num maior no card */
-  .tear-num{font-size:1.3rem}
-
-  /* fc-date menor */
-  .fc-date{font-size:.75rem}
+  /* fc-date compacto */
+  .fc-date{font-size:.75rem;white-space:nowrap}
   .fc-days{font-size:.58rem}
 
-  /* chips menores */
-  .chip{font-size:.6rem;padding:2px 6px}
+  /* chips */
+  .chip{font-size:.6rem;padding:2px 6px;white-space:nowrap}
 
-  /* panel-head compacto */
+  /* tear-num */
+  .tear-num{font-size:1.25rem}
+
+  /* panel */
   .panel-head{padding:8px 12px;font-size:.78rem}
-
-  /* container sem padding lateral excessivo */
   .container{padding:10px 8px}
   .stats{gap:8px;margin-bottom:10px}
   .stat-card{padding:10px 12px}
   .s-value{font-size:1.7rem}
+  .legend{display:none}
 }
 .tear-num{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;color:var(--accent)}
 .model-name{font-size:.7rem;color:var(--muted);white-space:nowrap}
@@ -592,19 +598,11 @@ tbody td{padding:7px 10px;vertical-align:middle}
 
 /* ── AJUSTES MOBILE ADICIONAIS ── */
 @media(max-width:640px){
-  /* btn finish fica visível no card mobile quando manutenção ativa */
-  tbody td:nth-child(13){display:flex!important;grid-column:4;grid-row:1;padding:0;justify-content:flex-end}
-  tbody td:nth-child(13) .btn-finish{display:inline-flex!important}
-
   /* timer compacto */
   .row-timer{font-size:.72rem;min-width:38px}
 
   /* menu dropdown ocupa tela toda no mobile */
   .menu-dropdown{position:fixed;top:calc(56px + var(--safe-top));right:8px;left:8px;min-width:0;border-radius:12px;max-height:80vh;overflow-y:auto}
-
-  /* btn-wrench e btn-finish menores no mobile */
-  .btn-action svg{width:18px;height:18px}
-  .btn-wrench,.btn-finish{width:32px;height:32px}
 
   /* legend some no mobile */
   .legend{display:none}
@@ -715,6 +713,21 @@ tbody td{padding:7px 10px;vertical-align:middle}
       </div>
       <div class="tbl-scroll">
         <table>
+          <colgroup>
+            <col style="width:36px"><!-- Tear -->
+            <col><!-- Modelo -->
+            <col class="hide-mobile" style="width:44px"><!-- RPM -->
+            <col class="hide-mobile" style="width:72px"><!-- Setup -->
+            <col style="width:52px"><!-- Chave -->
+            <col style="width:112px"><!-- Data -->
+            <col class="hide-mobile" style="width:90px"><!-- Realizado -->
+            <col class="hide-mobile" style="width:90px"><!-- Real voltas -->
+            <col class="hide-mobile" style="width:70px"><!-- Saldo -->
+            <col class="hide-mobile" style="width:70px"><!-- Progresso -->
+            <col style="width:96px"><!-- Proxima -->
+            <col style="width:80px"><!-- Status -->
+            <col style="width:36px"><!-- Btn -->
+          </colgroup>
           <thead>
             <tr>
               <th>Tear</th>
@@ -723,8 +736,8 @@ tbody td{padding:7px 10px;vertical-align:middle}
               <th class="hide-mobile">Setup</th>
               <th></th>
               <th class="col-info">Data Manut.</th>
-              <th class="col-accent">Realizado</th>
-              <th class="col-accent">Real (Voltas)</th>
+              <th class="col-accent hide-mobile">Realizado</th>
+              <th class="col-accent hide-mobile">Real (Voltas)</th>
               <th class="hide-mobile">Saldo</th>
               <th class="hide-mobile">Progresso</th>
               <th class="col-ok">Proxima</th>
