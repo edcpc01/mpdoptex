@@ -397,19 +397,19 @@ tbody td{padding:7px 10px;vertical-align:middle}
 .btn-add-tear{background:rgba(249,115,22,.15);border:1px solid var(--accent);color:var(--accent);padding:7px 16px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;letter-spacing:.04em;transition:background .15s}
 .btn-add-tear:hover{background:rgba(249,115,22,.3)}
 /* cards wrap — sem overflow horizontal */
-.teares-cards-wrap{padding:12px 14px;display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 240px);overflow-y:auto;overflow-x:hidden}
+.teares-cards-wrap{padding:12px 14px;display:flex;flex-direction:column;gap:12px;overflow-x:hidden}
 /* card individual */
-.tear-card{background:var(--s2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
-.tear-card-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--s3);border-bottom:1px solid var(--border)}
-.tear-card-badge{font-family:'Barlow Condensed',sans-serif;font-size:.95rem;color:var(--muted);flex:1}
+.tear-card{background:var(--s2);border:1px solid var(--border);border-radius:10px;width:100%;box-sizing:border-box}
+.tear-card-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--s3);border-bottom:1px solid var(--border);min-height:44px}
+.tear-card-badge{font-family:'Barlow Condensed',sans-serif;font-size:.95rem;color:var(--muted);flex:1;min-height:20px}
 .tear-card-badge strong{color:var(--accent);font-size:1.15rem}
-.btn-del-inline{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:4px 12px;border-radius:6px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.75rem;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:background .15s}
+.btn-del-inline{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:4px 12px;border-radius:6px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.75rem;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;transition:background .15s;flex-shrink:0}
 .btn-del-inline:hover{background:rgba(239,68,68,.28)}
-.tear-card-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px}
-.tear-field-full{grid-column:1/-1}
-.tear-field-half{min-width:0}
+.tear-card-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px;min-height:80px}
+.tear-field-full{grid-column:1/-1;min-height:56px}
+.tear-field-half{min-width:0;min-height:56px}
 .tear-field-lbl{display:block;font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
-.tear-inp{background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px;width:100%;transition:border .15s}
+.tear-inp{background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px;width:100%;box-sizing:border-box;transition:border .15s;display:block}
 .tear-inp:focus{outline:none;border-color:var(--accent)}
 .btn-del-tear{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;transition:background .15s}
 .btn-del-tear:hover{background:rgba(239,68,68,.3)}
@@ -597,6 +597,15 @@ tbody td{padding:7px 10px;vertical-align:middle}
 .btn-ver-fotos{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--info);font-size:.72rem;padding:3px 10px;border-radius:6px;cursor:pointer;font-family:'Barlow',sans-serif;transition:background .15s}
 .btn-ver-fotos:hover{background:rgba(56,189,248,.25)}
 
+
+/* OVERRIDE: garante visibilidade dos cards de teares em qualquer contexto */
+.tear-card,.tear-card *{visibility:visible!important}
+.tear-card-head,.tear-card-fields{display:flex!important}
+.tear-card-head{flex-direction:row!important;align-items:center!important}
+.tear-card-fields{display:grid!important;grid-template-columns:1fr 1fr!important;gap:10px!important;padding:12px 14px!important}
+.tear-field-full,.tear-field-half{display:block!important;min-height:56px!important}
+.tear-inp{display:block!important;width:100%!important;height:auto!important;opacity:1!important}
+.tear-field-lbl{display:block!important}
 
 /* ── AJUSTES MOBILE ADICIONAIS ── */
 @media(max-width:640px){
