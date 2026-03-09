@@ -1,81 +1,72 @@
-// SERVICE WORKER — Manutencao Preventiva
-// Versao: 6efdaf91
-// Regra de ouro: NUNCA intercepta requisicoes externas (Firebase, gstatic, etc.)
-// Apenas arquivos do proprio dominio sao cacheados.
+// Service Worker — Manutencao Preventiva
+// Bump CACHE_VERSION para forcar atualizacao em todos os dispositivos
+var CACHE_VERSION = 'mp-v9-' + Date.now(); // timestamp garante cache unico
+var CACHE_NAME = CACHE_VERSION;
 
-const CACHE = 'mp-v6efdaf98';
+var ASSETS = [
+  '/',
+  '/index.html',
+  '/app.js',
+  '/manifest.json',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png'
+];
 
-// Install: cacheia os arquivos do app para funcionar offline
-self.addEventListener('install', e => {
+// Instala e faz cache dos assets
+self.addEventListener('install', function(e) {
+  self.skipWaiting(); // Assume controle imediatamente sem esperar reload
   e.waitUntil(
-    caches.open(CACHE)
-      .then(c => c.addAll(['/index.html', '/app.js', '/manifest.json']))
-      .then(() => self.skipWaiting())
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.addAll(ASSETS).catch(function(err) {
+        console.warn('[SW] cache.addAll parcial:', err);
+      });
+    })
   );
 });
 
-// Activate: apaga caches antigos e assume controle imediatamente
-self.addEventListener('activate', e => {
+// Apaga caches antigos ao ativar
+self.addEventListener('activate', function(e) {
   e.waitUntil(
-    caches.keys()
-      .then(keys => Promise.all(
-        keys.filter(k => k !== CACHE).map(k => caches.delete(k))
-      ))
-      .then(() => self.clients.claim())
+    caches.keys().then(function(keys) {
+      return Promise.all(
+        keys.filter(function(k) { return k !== CACHE_NAME; })
+            .map(function(k) { return caches.delete(k); })
+      );
+    }).then(function() {
+      return self.clients.claim(); // Assume controle de todos os clientes abertos
+    })
   );
 });
 
-// Fetch: Network-First APENAS para arquivos do proprio dominio
-// Qualquer outra origem (Firebase, gstatic, googleapis...) passa DIRETO sem interceptar
-self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
+// Estrategia: Network First para JS/HTML, Cache First para imagens/fontes
+self.addEventListener('fetch', function(e) {
+  var url = e.request.url;
 
-  // So intercepta GET do proprio dominio
-  if (e.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  // Ignora requests externos (Firebase, Google Fonts, etc)
+  if (!url.startsWith(self.location.origin)) return;
 
-  // Network-First: tenta rede primeiro, cache como fallback offline
+  // Network First para paginas e scripts (sempre tenta atualizar)
+  if (url.endsWith('.html') || url.endsWith('.js') || url.endsWith('/')) {
+    e.respondWith(
+      fetch(e.request).then(function(resp) {
+        var clone = resp.clone();
+        caches.open(CACHE_NAME).then(function(c) { c.put(e.request, clone); });
+        return resp;
+      }).catch(function() {
+        return caches.match(e.request);
+      })
+    );
+    return;
+  }
+
+  // Cache First para imagens e outros assets estaticos
   e.respondWith(
-    fetch(e.request)
-      .then(res => {
-        if (res && res.status === 200) {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-        }
-        return res;
-      })
-      .catch(() => caches.match(e.request).then(cached => cached || caches.match('/index.html')))
-  );
-});
-
-// Mensagem para forcar atualizacao via banner
-self.addEventListener('message', e => {
-  if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting();
-});
-
-// Push Notifications
-self.addEventListener('push', e => {
-  const data = e.data ? e.data.json() : {};
-  e.waitUntil(self.registration.showNotification(
-    data.title || 'Manutencao Preventiva', {
-      body:     data.body || 'Ha manutencoes que precisam de atencao.',
-      icon:     '/icons/icon-192.png',
-      badge:    '/icons/icon-192.png',
-      tag:      data.tag || 'mp-alert',
-      renotify: true,
-      data:     { url: data.url || '/' }
-    }
-  ));
-});
-
-self.addEventListener('notificationclick', e => {
-  e.notification.close();
-  if (e.action === 'dismiss') return;
-  e.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then(cls => {
-        const c = cls.find(c => c.url.includes(self.location.origin));
-        if (c) return c.focus();
-        return clients.openWindow('/');
-      })
+    caches.match(e.request).then(function(cached) {
+      return cached || fetch(e.request).then(function(resp) {
+        var clone = resp.clone();
+        caches.open(CACHE_NAME).then(function(c) { c.put(e.request, clone); });
+        return resp;
+      });
+    })
   );
 });
