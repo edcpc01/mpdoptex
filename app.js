@@ -1463,55 +1463,92 @@ function fecharGerenciarTeares() {
 function renderTearesEditor() {
   var body = document.getElementById('teares-body');
   if (!body) return;
+  body.innerHTML = '';
 
-  var html = '<div class="teares-toolbar">'+
-    '<button class="btn-add-tear" onclick="adicionarTear()">+ Adicionar Tear</button>'+
-    '<span style="font-size:.72rem;color:var(--muted)">'+_tearesEditaveis.length+' tear(es) cadastrado(s)</span>'+
-  '</div>';
+  // Toolbar
+  var toolbar = document.createElement('div');
+  toolbar.className = 'teares-toolbar';
+  toolbar.innerHTML =
+    '<button class="btn-add-tear" onclick="adicionarTear()">+ Adicionar Tear</button>' +
+    '<span style="font-size:.72rem;color:var(--muted)">' + _tearesEditaveis.length + ' tear(es) cadastrado(s)</span>';
+  body.appendChild(toolbar);
 
-  html += '<div class="teares-cards-wrap" id="teares-rows">';
+  // Cards
+  var wrap = document.createElement('div');
+  wrap.className = 'teares-cards-wrap';
+  wrap.id = 'teares-rows';
   _tearesEditaveis.forEach(function(t, i) {
-    html += renderTearRow(t, i);
+    wrap.appendChild(renderTearRow(t, i));
   });
-  html += '</div>';
+  body.appendChild(wrap);
 
-  html += '<div class="teares-footer">'+
-    '<button class="btn-save-teares" onclick="salvarTeares()">&#10003; Salvar Alteracoes</button>'+
-    '<span style="font-size:.7rem;color:var(--muted)">As alteracoes afetam todos os usuarios</span>'+
-  '</div>';
-
-  body.innerHTML = html;
+  // Footer
+  var footer = document.createElement('div');
+  footer.className = 'teares-footer';
+  footer.innerHTML =
+    '<button class="btn-save-teares" onclick="salvarTeares()">&#10003; Salvar Alteracoes</button>' +
+    '<span style="font-size:.7rem;color:var(--muted)">As alteracoes afetam todos os usuarios</span>';
+  body.appendChild(footer);
 }
 
 function renderTearRow(t, i) {
-  return '<div class="tear-card" id="tear-row-'+i+'">' +
-    '<div class="tear-card-head">' +
-      '<div class="tear-card-badge">Tear <strong>' + t.tear + '</strong></div>' +
-      '<button class="btn-del-tear btn-del-inline" onclick="removerTear(' + i + ')">&#10005; Remover</button>' +
-    '</div>' +
-    '<div class="tear-card-fields">' +
-      '<div class="tear-field-full">' +
-        '<label class="tear-field-lbl">Modelo</label>' +
-        '<input class="tear-inp" type="text" value="' + t.modelo + '" placeholder="Ex: ORIZIO 32 MONO" onchange="updateTear(' + i + ',\'modelo\',this.value)">' +
-      '</div>' +
-      '<div class="tear-field-half">' +
-        '<label class="tear-field-lbl">Nr do Tear</label>' +
-        '<input class="tear-inp" type="number" value="' + t.tear + '" min="1" onchange="updateTear(' + i + ',\'tear\',this.value)">' +
-      '</div>' +
-      '<div class="tear-field-half">' +
-        '<label class="tear-field-lbl">RPM</label>' +
-        '<input class="tear-inp" type="number" value="' + t.rpm + '" min="0" onchange="updateTear(' + i + ',\'rpm\',this.value)">' +
-      '</div>' +
-      '<div class="tear-field-half">' +
-        '<label class="tear-field-lbl">Setup (voltas)</label>' +
-        '<input class="tear-inp" type="number" value="' + t.setup + '" min="0" onchange="updateTear(' + i + ',\'setup\',this.value)">' +
-      '</div>' +
-      '<div class="tear-field-half">' +
-        '<label class="tear-field-lbl">Realizado (voltas)</label>' +
-        '<input class="tear-inp" type="number" value="' + (t.realizado != null ? t.realizado : '') + '" placeholder="0" onchange="updateTear(' + i + ',\'realizado\',this.value)">' +
-      '</div>' +
-    '</div>' +
-  '</div>';
+  // Usa DOM em vez de string HTML para evitar problemas com aspas no modelo (ex: ORIZIO 32" MONO)
+  var card = document.createElement('div');
+  card.className = 'tear-card';
+  card.id = 'tear-row-' + i;
+
+  // Cabeçalho
+  var head = document.createElement('div');
+  head.className = 'tear-card-head';
+
+  var badge = document.createElement('div');
+  badge.className = 'tear-card-badge';
+  badge.innerHTML = 'Tear <strong>' + t.tear + '</strong>';
+
+  var delBtn = document.createElement('button');
+  delBtn.className = 'btn-del-inline';
+  delBtn.innerHTML = '&#10005; Remover';
+  delBtn.onclick = (function(idx){ return function(){ removerTear(idx); }; })(i);
+
+  head.appendChild(badge);
+  head.appendChild(delBtn);
+
+  // Campos
+  var fields = document.createElement('div');
+  fields.className = 'tear-card-fields';
+
+  function makeField(labelTxt, tipo, val, cls, onchangeFn) {
+    var wrap = document.createElement('div');
+    wrap.className = cls;
+    var lbl = document.createElement('label');
+    lbl.className = 'tear-field-lbl';
+    lbl.textContent = labelTxt;
+    var inp = document.createElement('input');
+    inp.className = 'tear-inp';
+    inp.type = tipo;
+    if (tipo === 'number') inp.min = '0';
+    inp.value = (val != null && val !== '') ? val : '';
+    if (tipo === 'text') inp.placeholder = 'Ex: ORIZIO 32" MONO';
+    inp.addEventListener('change', onchangeFn);
+    wrap.appendChild(lbl);
+    wrap.appendChild(inp);
+    return wrap;
+  }
+
+  fields.appendChild(makeField('Modelo', 'text', t.modelo, 'tear-field-full',
+    (function(idx){ return function(){ updateTear(idx,'modelo',this.value); }; })(i)));
+  fields.appendChild(makeField('Nr do Tear', 'number', t.tear, 'tear-field-half',
+    (function(idx){ return function(){ updateTear(idx,'tear',this.value); }; })(i)));
+  fields.appendChild(makeField('RPM', 'number', t.rpm, 'tear-field-half',
+    (function(idx){ return function(){ updateTear(idx,'rpm',this.value); }; })(i)));
+  fields.appendChild(makeField('Setup (voltas)', 'number', t.setup, 'tear-field-half',
+    (function(idx){ return function(){ updateTear(idx,'setup',this.value); }; })(i)));
+  fields.appendChild(makeField('Realizado (voltas)', 'number', t.realizado, 'tear-field-half',
+    (function(idx){ return function(){ updateTear(idx,'realizado',this.value); }; })(i)));
+
+  card.appendChild(head);
+  card.appendChild(fields);
+  return card;
 }
 
 function updateTear(i, campo, valor) {
@@ -1530,10 +1567,8 @@ function adicionarTear() {
   // Adiciona o novo card sem re-renderizar tudo
   var wrap = document.getElementById('teares-rows');
   if (wrap) {
-    var i   = _tearesEditaveis.length - 1;
-    var tmp = document.createElement('div');
-    tmp.innerHTML = renderTearRow(_tearesEditaveis[i], i);
-    wrap.appendChild(tmp.firstChild);
+    var i = _tearesEditaveis.length - 1;
+    wrap.appendChild(renderTearRow(_tearesEditaveis[i], i));
   }
   // Atualiza contador
   var toolbar = document.querySelector('.teares-toolbar span');
