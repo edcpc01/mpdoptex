@@ -396,19 +396,21 @@ tbody td{padding:7px 10px;vertical-align:middle}
 .teares-toolbar{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--border);flex-wrap:wrap;gap:8px}
 .btn-add-tear{background:rgba(249,115,22,.15);border:1px solid var(--accent);color:var(--accent);padding:7px 16px;border-radius:8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;letter-spacing:.04em;transition:background .15s}
 .btn-add-tear:hover{background:rgba(249,115,22,.3)}
-.teares-table-wrap{overflow-x:auto;max-height:calc(100vh - 280px);overflow-y:auto}
-.teares-table{width:100%;border-collapse:collapse;font-size:.8rem}
-.teares-table thead th{padding:8px 10px;background:var(--s3);color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0;z-index:2;white-space:nowrap}
-.teares-table tbody tr{border-bottom:1px solid rgba(42,53,80,.5)}
-.teares-table tbody tr:hover{background:rgba(26,34,54,.4)}
-.tear-inp{background:var(--s2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:.8rem;padding:6px 8px;width:100%;transition:border .15s}
+/* cards wrap — sem overflow horizontal */
+.teares-cards-wrap{padding:12px 14px;display:flex;flex-direction:column;gap:12px;max-height:calc(100vh - 240px);overflow-y:auto;overflow-x:hidden}
+/* card individual */
+.tear-card{background:var(--s2);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.tear-card-head{display:flex;align-items:center;gap:10px;padding:10px 14px;background:var(--s3);border-bottom:1px solid var(--border)}
+.tear-card-badge{font-family:'Barlow Condensed',sans-serif;font-size:.95rem;color:var(--muted);flex:1}
+.tear-card-badge strong{color:var(--accent);font-size:1.15rem}
+.btn-del-inline{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;padding:4px 12px;border-radius:6px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.75rem;display:flex;align-items:center;gap:4px;white-space:nowrap;transition:background .15s}
+.btn-del-inline:hover{background:rgba(239,68,68,.28)}
+.tear-card-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px 14px}
+.tear-field-full{grid-column:1/-1}
+.tear-field-half{min-width:0}
+.tear-field-lbl{display:block;font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:4px}
+.tear-inp{background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:.85rem;padding:8px 10px;width:100%;transition:border .15s}
 .tear-inp:focus{outline:none;border-color:var(--accent)}
-.tear-num{width:56px}
-.tear-modelo{width:180px}
-.tear-rpm{width:60px}
-.tear-setup{width:110px}
-.tear-realizado{width:110px}
-.teares-table td{padding:6px 8px;vertical-align:middle}
 .btn-del-tear{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:#ef4444;width:28px;height:28px;border-radius:6px;cursor:pointer;font-size:.85rem;display:flex;align-items:center;justify-content:center;transition:background .15s}
 .btn-del-tear:hover{background:rgba(239,68,68,.3)}
 .teares-footer{padding:14px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;flex-shrink:0}
@@ -686,7 +688,7 @@ tbody td{padding:7px 10px;vertical-align:middle}
             Exportar CSV / XLS
           </button>
           <button class="menu-item" id="btn-notif" onclick="requestNotificationPermission();toggleMenu()">
-            &#128276; Ativar notificacoes
+            🔔 Ativar notificacoes
           </button>
           <div class="menu-sep"></div>
           <button class="menu-item danger" onclick="doLogout()">

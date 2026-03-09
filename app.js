@@ -959,7 +959,12 @@ function renderHistorico(lista) {
 async function requestNotificationPermission() {
   if (!('Notification' in window)) { showToast('Sem suporte a notificacoes.'); return; }
   var perm = await Notification.requestPermission();
-  if (perm === 'granted') { _setText('btn-notif','&#128276; Notificacoes ativas'); showToast('Notificacoes ativadas!'); scheduleNotifications(); }
+  if (perm === 'granted') {
+    var nb = document.getElementById('btn-notif');
+    if (nb) nb.textContent = '\uD83D\uDD14 Notificacoes ativas';
+    showToast('Notificacoes ativadas!');
+    scheduleNotifications();
+  }
 }
 function scheduleNotifications() { if (typeof Notification==='undefined'||Notification.permission!=='granted') return; checkNotify(); setInterval(checkNotify,86400000); }
 function checkNotify() {
@@ -1464,16 +1469,11 @@ function renderTearesEditor() {
     '<span style="font-size:.72rem;color:var(--muted)">'+_tearesEditaveis.length+' tear(es) cadastrado(s)</span>'+
   '</div>';
 
-  html += '<div class="teares-table-wrap"><table class="teares-table">'+
-    '<thead><tr>'+
-      '<th>Nº</th><th>Modelo</th><th>RPM</th><th>Setup (voltas)</th><th>Realizado</th><th></th>'+
-    '</tr></thead><tbody id="teares-rows">';
-
+  html += '<div class="teares-cards-wrap" id="teares-rows">';
   _tearesEditaveis.forEach(function(t, i) {
     html += renderTearRow(t, i);
   });
-
-  html += '</tbody></table></div>';
+  html += '</div>';
 
   html += '<div class="teares-footer">'+
     '<button class="btn-save-teares" onclick="salvarTeares()">&#10003; Salvar Alteracoes</button>'+
@@ -1484,14 +1484,34 @@ function renderTearesEditor() {
 }
 
 function renderTearRow(t, i) {
-  return '<tr id="tear-row-'+i+'">'+
-    '<td><input class="tear-inp tear-num" type="number" value="'+t.tear+'" min="1" onchange="updateTear('+i+',\'tear\',this.value)"></td>'+
-    '<td><input class="tear-inp tear-modelo" type="text" value="'+t.modelo+'" onchange="updateTear('+i+',\'modelo\',this.value)"></td>'+
-    '<td><input class="tear-inp tear-rpm" type="number" value="'+t.rpm+'" min="0" onchange="updateTear('+i+',\'rpm\',this.value)"></td>'+
-    '<td><input class="tear-inp tear-setup" type="number" value="'+t.setup+'" min="0" onchange="updateTear('+i+',\'setup\',this.value)"></td>'+
-    '<td><input class="tear-inp tear-realizado" type="number" value="'+(t.realizado!=null?t.realizado:'')+'" placeholder="0" onchange="updateTear('+i+',\'realizado\',this.value)"></td>'+
-    '<td><button class="btn-del-tear" onclick="removerTear('+i+')" title="Remover">&#10005;</button></td>'+
-  '</tr>';
+  return '<div class="tear-card" id="tear-row-'+i+'">' +
+    '<div class="tear-card-head">' +
+      '<div class="tear-card-badge">Tear <strong>' + t.tear + '</strong></div>' +
+      '<button class="btn-del-tear btn-del-inline" onclick="removerTear(' + i + ')">&#10005; Remover</button>' +
+    '</div>' +
+    '<div class="tear-card-fields">' +
+      '<div class="tear-field-full">' +
+        '<label class="tear-field-lbl">Modelo</label>' +
+        '<input class="tear-inp" type="text" value="' + t.modelo + '" placeholder="Ex: ORIZIO 32 MONO" onchange="updateTear(' + i + ',\'modelo\',this.value)">' +
+      '</div>' +
+      '<div class="tear-field-half">' +
+        '<label class="tear-field-lbl">Nr do Tear</label>' +
+        '<input class="tear-inp" type="number" value="' + t.tear + '" min="1" onchange="updateTear(' + i + ',\'tear\',this.value)">' +
+      '</div>' +
+      '<div class="tear-field-half">' +
+        '<label class="tear-field-lbl">RPM</label>' +
+        '<input class="tear-inp" type="number" value="' + t.rpm + '" min="0" onchange="updateTear(' + i + ',\'rpm\',this.value)">' +
+      '</div>' +
+      '<div class="tear-field-half">' +
+        '<label class="tear-field-lbl">Setup (voltas)</label>' +
+        '<input class="tear-inp" type="number" value="' + t.setup + '" min="0" onchange="updateTear(' + i + ',\'setup\',this.value)">' +
+      '</div>' +
+      '<div class="tear-field-half">' +
+        '<label class="tear-field-lbl">Realizado (voltas)</label>' +
+        '<input class="tear-inp" type="number" value="' + (t.realizado != null ? t.realizado : '') + '" placeholder="0" onchange="updateTear(' + i + ',\'realizado\',this.value)">' +
+      '</div>' +
+    '</div>' +
+  '</div>';
 }
 
 function updateTear(i, campo, valor) {
@@ -1507,14 +1527,13 @@ function adicionarTear() {
   var ultimo = _tearesEditaveis[_tearesEditaveis.length-1];
   var novoNum = ultimo ? (ultimo.tear + 1) : 1;
   _tearesEditaveis.push({ tear: novoNum, modelo: '', rpm: 28, setup: 1800000, realizado: null });
-  // Adiciona só a nova linha na tbody sem re-renderizar tudo
-  var tbody = document.getElementById('teares-rows');
-  if (tbody) {
+  // Adiciona o novo card sem re-renderizar tudo
+  var wrap = document.getElementById('teares-rows');
+  if (wrap) {
     var i   = _tearesEditaveis.length - 1;
-    var tr  = document.createElement('tr');
-    tr.id   = 'tear-row-'+i;
-    tr.innerHTML = renderTearRow(_tearesEditaveis[i], i).replace(/^<tr[^>]*>/, '').replace(/<\/tr>$/, '');
-    tbody.appendChild(tr);
+    var tmp = document.createElement('div');
+    tmp.innerHTML = renderTearRow(_tearesEditaveis[i], i);
+    wrap.appendChild(tmp.firstChild);
   }
   // Atualiza contador
   var toolbar = document.querySelector('.teares-toolbar span');
