@@ -45,15 +45,21 @@ body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;font
 
 /* APP */
 #screen-app{display:none}
-header{background:var(--surface);border-bottom:3px solid var(--accent);padding:calc(12px + var(--safe-top)) 16px 12px;display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,.4)}
-.logo{width:38px;height:38px;background:var(--accent);border-radius:7px;display:grid;place-items:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px;color:#000;flex-shrink:0}
-.h-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.2rem;text-transform:uppercase;letter-spacing:.04em;line-height:1}
-.h-sub{font-size:.65rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:2px}
-.h-right{margin-left:auto;display:flex;align-items:center;gap:8px}
-.today-pill{background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:.72rem;color:var(--muted);white-space:nowrap}
-.today-pill strong{color:var(--accent);font-family:'Barlow Condensed',sans-serif;font-size:.88rem}
+header{background:var(--surface);border-bottom:3px solid var(--accent);padding:calc(10px + var(--safe-top)) 14px 10px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 4px 20px rgba(0,0,0,.4)}
+.logo{width:36px;height:36px;background:var(--accent);border-radius:7px;display:grid;place-items:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:17px;color:#000;flex-shrink:0}
+.h-title{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;text-transform:uppercase;letter-spacing:.04em;line-height:1}
+.h-sub{font-size:.6rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-top:2px}
+/* No mobile: h-sub some para poupar espaço */
+@media(max-width:480px){.h-sub{display:none}}
+.h-right{margin-left:auto;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.today-pill{background:var(--s2);border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:.7rem;color:var(--muted);white-space:nowrap}
+.today-pill strong{color:var(--accent);font-family:'Barlow Condensed',sans-serif;font-size:.85rem}
+/* No mobile: esconde "Hoje: " e mostra só a data */
+@media(max-width:380px){.today-pill .today-label{display:none}}
 .btn-icon{background:var(--s2);border:1px solid var(--border);border-radius:7px;color:var(--text);width:36px;height:36px;display:grid;place-items:center;cursor:pointer;transition:background .15s;position:relative;flex-shrink:0}
 .btn-icon:hover{background:var(--s3);border-color:var(--accent)}
+/* sync indicator some no mobile */
+@media(max-width:540px){#sync-indicator{display:none}}
 .menu-dropdown{position:absolute;top:calc(100% + 8px);right:0;background:var(--surface);border:1px solid var(--border);border-radius:10px;min-width:220px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;flex-direction:column;overflow:hidden;z-index:200}
 .menu-dropdown.open{display:flex}
 .menu-item{padding:11px 16px;display:flex;align-items:center;gap:10px;font-size:.85rem;cursor:pointer;transition:background .12s;border:none;background:none;color:var(--text);text-align:left;font-family:'Barlow',sans-serif;font-weight:400}
@@ -75,7 +81,7 @@ header{background:var(--surface);border-bottom:3px solid var(--accent);padding:c
 .panel{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .panel-head{background:var(--s2);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:8px;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.85rem;letter-spacing:.07em;text-transform:uppercase;color:var(--accent)}
 .hint{margin-left:auto;font-size:.65rem;color:var(--muted);font-family:'Barlow',sans-serif;font-weight:300;letter-spacing:0;text-transform:none}
-.tbl-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbl-scroll{overflow-x:hidden;-webkit-overflow-scrolling:touch}
 table{width:100%;border-collapse:collapse;font-size:.78rem}
 thead tr{background:var(--s3);border-bottom:2px solid var(--accent)}
 thead th{padding:8px 10px;text-align:left;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
@@ -83,6 +89,72 @@ thead th.col-accent{color:var(--accent)}thead th.col-info{color:var(--info)}thea
 tbody tr{border-bottom:1px solid var(--border);transition:background .12s}
 tbody tr:active{background:rgba(249,115,22,.06)}
 tbody td{padding:7px 10px;vertical-align:middle}
+
+/* ── LAYOUT MOBILE — tabela vira cards ── */
+@media(max-width:640px){
+  .tbl-scroll{overflow-x:hidden}
+  table,thead,tbody,tr,td{display:block;width:100%}
+  thead{display:none}  /* esconde cabeçalho — info fica inline nos cards */
+  tbody tr{
+    display:grid;
+    grid-template-columns:40px 1fr auto auto;
+    grid-template-rows:auto auto;
+    align-items:center;
+    gap:0 8px;
+    padding:10px 12px;
+    border-bottom:1px solid var(--border);
+    position:relative;
+  }
+  /* Col 1: número do tear */
+  tbody td:nth-child(1){grid-column:1;grid-row:1/3;display:flex;align-items:center;justify-content:center}
+  /* Col 2: modelo */
+  tbody td:nth-child(2){grid-column:2;grid-row:1;padding:0;font-size:.72rem;color:var(--muted)}
+  /* Col 3 (RPM): some */
+  tbody td:nth-child(3){display:none!important}
+  /* Col 4 (Setup): some */
+  tbody td:nth-child(4){display:none!important}
+  /* Col 5 (chave+timer): posição absoluta topo-direita linha 1 */
+  tbody td:nth-child(5){grid-column:3;grid-row:1;padding:0;display:flex;align-items:center;gap:4px}
+  /* Col 6 (Data Manut): linha 2 col 2 — input date compacto */
+  tbody td:nth-child(6){grid-column:2;grid-row:2;padding:2px 0}
+  /* Col 7 (Realizado): some */
+  tbody td:nth-child(7){display:none!important}
+  /* Col 8 (Real voltas): some */
+  tbody td:nth-child(8){display:none!important}
+  /* Col 9 (Saldo): some */
+  tbody td:nth-child(9){display:none!important}
+  /* Col 10 (Progresso): some */
+  tbody td:nth-child(10){display:none!important}
+  /* Col 11 (Proxima): linha 1 col 4 */
+  tbody td:nth-child(11){grid-column:4;grid-row:1;padding:0;text-align:right}
+  /* Col 12 (Status): linha 2 col 3+4 */
+  tbody td:nth-child(12){grid-column:3/5;grid-row:2;padding:2px 0;text-align:right}
+  /* Col 13 (btn finish): some — o btn chave já abre checklist */
+  tbody td:nth-child(13){display:none!important}
+
+  /* Ajustes nos inputs de data no card */
+  .input-date{font-size:.72rem;padding:4px 7px;min-width:0;width:100%}
+  .cell-input{font-size:.72rem;padding:4px 7px}
+
+  /* tear-num maior no card */
+  .tear-num{font-size:1.3rem}
+
+  /* fc-date menor */
+  .fc-date{font-size:.75rem}
+  .fc-days{font-size:.58rem}
+
+  /* chips menores */
+  .chip{font-size:.6rem;padding:2px 6px}
+
+  /* panel-head compacto */
+  .panel-head{padding:8px 12px;font-size:.78rem}
+
+  /* container sem padding lateral excessivo */
+  .container{padding:10px 8px}
+  .stats{gap:8px;margin-bottom:10px}
+  .stat-card{padding:10px 12px}
+  .s-value{font-size:1.7rem}
+}
 .tear-num{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:1.05rem;color:var(--accent)}
 .model-name{font-size:.7rem;color:var(--muted);white-space:nowrap}
 .cell-input{background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:'Barlow',sans-serif;font-size:.78rem;padding:5px 7px;transition:border-color .18s;width:100%;-webkit-appearance:none}
@@ -517,6 +589,27 @@ tbody td{padding:7px 10px;vertical-align:middle}
 .btn-ver-fotos{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--info);font-size:.72rem;padding:3px 10px;border-radius:6px;cursor:pointer;font-family:'Barlow',sans-serif;transition:background .15s}
 .btn-ver-fotos:hover{background:rgba(56,189,248,.25)}
 
+
+/* ── AJUSTES MOBILE ADICIONAIS ── */
+@media(max-width:640px){
+  /* btn finish fica visível no card mobile quando manutenção ativa */
+  tbody td:nth-child(13){display:flex!important;grid-column:4;grid-row:1;padding:0;justify-content:flex-end}
+  tbody td:nth-child(13) .btn-finish{display:inline-flex!important}
+
+  /* timer compacto */
+  .row-timer{font-size:.72rem;min-width:38px}
+
+  /* menu dropdown ocupa tela toda no mobile */
+  .menu-dropdown{position:fixed;top:calc(56px + var(--safe-top));right:8px;left:8px;min-width:0;border-radius:12px;max-height:80vh;overflow-y:auto}
+
+  /* btn-wrench e btn-finish menores no mobile */
+  .btn-action svg{width:18px;height:18px}
+  .btn-wrench,.btn-finish{width:32px;height:32px}
+
+  /* legend some no mobile */
+  .legend{display:none}
+}
+
 </style>
 </head>
 <body>
@@ -553,7 +646,7 @@ tbody td{padding:7px 10px;vertical-align:middle}
       <div class="h-sub">Cronograma &amp; Previsao</div>
     </div>
     <div class="h-right">
-      <div class="today-pill">Hoje: <strong id="lbl-today"></strong></div>
+      <div class="today-pill"><span class="today-label">Hoje: </span><strong id="lbl-today"></strong></div>
       <span id="sync-indicator" style="opacity:0"></span>
       <button class="btn-install-pill" id="btn-install" onclick="installPWA()">&#11015; Instalar app</button>
       <div style="position:relative">
