@@ -1463,92 +1463,77 @@ function fecharGerenciarTeares() {
 function renderTearesEditor() {
   var body = document.getElementById('teares-body');
   if (!body) return;
-  body.innerHTML = '';
+
+  console.log('[Teares] renderizando', _tearesEditaveis.length, 'teares');
+  console.log('[Teares] primeiro tear:', JSON.stringify(_tearesEditaveis[0]));
 
   // Toolbar
-  var toolbar = document.createElement('div');
-  toolbar.className = 'teares-toolbar';
-  toolbar.innerHTML =
+  var html = '<div class="teares-toolbar">' +
     '<button class="btn-add-tear" onclick="adicionarTear()">+ Adicionar Tear</button>' +
-    '<span style="font-size:.72rem;color:var(--muted)">' + _tearesEditaveis.length + ' tear(es) cadastrado(s)</span>';
-  body.appendChild(toolbar);
+    '<span style="font-size:.72rem;color:var(--muted)">' + _tearesEditaveis.length + ' tear(es) cadastrado(s)</span>' +
+  '</div>' +
+  '<div class="teares-cards-wrap" id="teares-rows">';
 
-  // Cards
-  var wrap = document.createElement('div');
-  wrap.className = 'teares-cards-wrap';
-  wrap.id = 'teares-rows';
-  _tearesEditaveis.forEach(function(t, i) {
-    wrap.appendChild(renderTearRow(t, i));
-  });
-  body.appendChild(wrap);
+  for (var i = 0; i < _tearesEditaveis.length; i++) {
+    html += renderTearRow(_tearesEditaveis[i], i);
+  }
 
-  // Footer
-  var footer = document.createElement('div');
-  footer.className = 'teares-footer';
-  footer.innerHTML =
+  html += '</div>' +
+  '<div class="teares-footer">' +
     '<button class="btn-save-teares" onclick="salvarTeares()">&#10003; Salvar Alteracoes</button>' +
-    '<span style="font-size:.7rem;color:var(--muted)">As alteracoes afetam todos os usuarios</span>';
-  body.appendChild(footer);
+    '<span style="font-size:.7rem;color:var(--muted)">As alteracoes afetam todos os usuarios</span>' +
+  '</div>';
+
+  body.innerHTML = html;
+
+  // Preenche os inputs via JS DEPOIS do innerHTML (evita problema de aspas no value="")
+  for (var j = 0; j < _tearesEditaveis.length; j++) {
+    var t = _tearesEditaveis[j];
+    var prefix = 'tr-' + j + '-';
+    var elModelo   = document.getElementById(prefix + 'modelo');
+    var elNum      = document.getElementById(prefix + 'num');
+    var elRpm      = document.getElementById(prefix + 'rpm');
+    var elSetup    = document.getElementById(prefix + 'setup');
+    var elRealiz   = document.getElementById(prefix + 'realizado');
+    if (elModelo)  elModelo.value  = t.modelo  || '';
+    if (elNum)     elNum.value     = t.tear     != null ? t.tear    : '';
+    if (elRpm)     elRpm.value     = t.rpm      != null ? t.rpm     : '';
+    if (elSetup)   elSetup.value   = t.setup    != null ? t.setup   : '';
+    if (elRealiz)  elRealiz.value  = t.realizado != null ? t.realizado : '';
+  }
 }
 
 function renderTearRow(t, i) {
-  // Usa DOM em vez de string HTML para evitar problemas com aspas no modelo (ex: ORIZIO 32" MONO)
-  var card = document.createElement('div');
-  card.className = 'tear-card';
-  card.id = 'tear-row-' + i;
-
-  // Cabeçalho
-  var head = document.createElement('div');
-  head.className = 'tear-card-head';
-
-  var badge = document.createElement('div');
-  badge.className = 'tear-card-badge';
-  badge.innerHTML = 'Tear <strong>' + t.tear + '</strong>';
-
-  var delBtn = document.createElement('button');
-  delBtn.className = 'btn-del-inline';
-  delBtn.innerHTML = '&#10005; Remover';
-  delBtn.onclick = (function(idx){ return function(){ removerTear(idx); }; })(i);
-
-  head.appendChild(badge);
-  head.appendChild(delBtn);
-
-  // Campos
-  var fields = document.createElement('div');
-  fields.className = 'tear-card-fields';
-
-  function makeField(labelTxt, tipo, val, cls, onchangeFn) {
-    var wrap = document.createElement('div');
-    wrap.className = cls;
-    var lbl = document.createElement('label');
-    lbl.className = 'tear-field-lbl';
-    lbl.textContent = labelTxt;
-    var inp = document.createElement('input');
-    inp.className = 'tear-inp';
-    inp.type = tipo;
-    if (tipo === 'number') inp.min = '0';
-    inp.value = (val != null && val !== '') ? val : '';
-    if (tipo === 'text') inp.placeholder = 'Ex: ORIZIO 32" MONO';
-    inp.addEventListener('change', onchangeFn);
-    wrap.appendChild(lbl);
-    wrap.appendChild(inp);
-    return wrap;
-  }
-
-  fields.appendChild(makeField('Modelo', 'text', t.modelo, 'tear-field-full',
-    (function(idx){ return function(){ updateTear(idx,'modelo',this.value); }; })(i)));
-  fields.appendChild(makeField('Nr do Tear', 'number', t.tear, 'tear-field-half',
-    (function(idx){ return function(){ updateTear(idx,'tear',this.value); }; })(i)));
-  fields.appendChild(makeField('RPM', 'number', t.rpm, 'tear-field-half',
-    (function(idx){ return function(){ updateTear(idx,'rpm',this.value); }; })(i)));
-  fields.appendChild(makeField('Setup (voltas)', 'number', t.setup, 'tear-field-half',
-    (function(idx){ return function(){ updateTear(idx,'setup',this.value); }; })(i)));
-  fields.appendChild(makeField('Realizado (voltas)', 'number', t.realizado, 'tear-field-half',
-    (function(idx){ return function(){ updateTear(idx,'realizado',this.value); }; })(i)));
-
-  card.appendChild(head);
-  card.appendChild(fields);
-  return card;
+  var prefix = 'tr-' + i + '-';
+  // Usa IDs para preencher valores via JS depois (evita problema de aspas no HTML)
+  return '<div class="tear-card" id="tear-row-' + i + '">' +
+    '<div class="tear-card-head">' +
+      '<div class="tear-card-badge">Tear <strong>' + (t.tear || (i+1)) + '</strong></div>' +
+      '<button class="btn-del-inline" onclick="removerTear(' + i + ')">&#10005; Remover</button>' +
+    '</div>' +
+    '<div class="tear-card-fields">' +
+      '<div class="tear-field-full">' +
+        '<label class="tear-field-lbl">Modelo</label>' +
+        '<input class="tear-inp" id="' + prefix + 'modelo" type="text" placeholder="Ex: ORIZIO 32 MONO" onchange="updateTear(' + i + ',\'modelo\',this.value)">' +
+      '</div>' +
+      '<div class="tear-field-half">' +
+        '<label class="tear-field-lbl">Nr do Tear</label>' +
+        '<input class="tear-inp" id="' + prefix + 'num" type="number" min="1" onchange="updateTear(' + i + ',\'tear\',this.value)">' +
+      '</div>' +
+      '<div class="tear-field-half">' +
+        '<label class="tear-field-lbl">RPM</label>' +
+        '<input class="tear-inp" id="' + prefix + 'rpm" type="number" min="0" onchange="updateTear(' + i + ',\'rpm\',this.value)">' +
+      '</div>' +
+      '<div class="tear-field-half">' +
+        '<label class="tear-field-lbl">Setup (voltas)</label>' +
+        '<input class="tear-inp" id="' + prefix + 'setup" type="number" min="0" onchange="updateTear(' + i + ',\'setup\',this.value)">' +
+      '</div>' +
+      '<div class="tear-field-half">' +
+        '<label class="tear-field-lbl">Realizado (voltas)</label>' +
+        '<input class="tear-inp" id="' + prefix + 'realizado" type="number" min="0" placeholder="0" onchange="updateTear(' + i + ',\'realizado\',this.value)">' +
+      '</div>' +
+    '</div>' +
+  '</div>';
 }
 
 function updateTear(i, campo, valor) {
@@ -1567,8 +1552,21 @@ function adicionarTear() {
   // Adiciona o novo card sem re-renderizar tudo
   var wrap = document.getElementById('teares-rows');
   if (wrap) {
-    var i = _tearesEditaveis.length - 1;
-    wrap.appendChild(renderTearRow(_tearesEditaveis[i], i));
+    var newIdx = _tearesEditaveis.length - 1;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = renderTearRow(_tearesEditaveis[newIdx], newIdx);
+    var newCard = tmp.firstChild;
+    wrap.appendChild(newCard);
+    // Preenche valores via JS (evita problema com aspas)
+    var prefix = 'tr-' + newIdx + '-';
+    var nt = _tearesEditaveis[newIdx];
+    var el;
+    el = document.getElementById(prefix+'modelo');   if(el) el.value = nt.modelo || '';
+    el = document.getElementById(prefix+'num');      if(el) el.value = nt.tear != null ? nt.tear : '';
+    el = document.getElementById(prefix+'rpm');      if(el) el.value = nt.rpm != null ? nt.rpm : '';
+    el = document.getElementById(prefix+'setup');    if(el) el.value = nt.setup != null ? nt.setup : '';
+    el = document.getElementById(prefix+'realizado');if(el) el.value = '';
+    newCard.scrollIntoView({behavior:'smooth'});
   }
   // Atualiza contador
   var toolbar = document.querySelector('.teares-toolbar span');
