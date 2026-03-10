@@ -251,6 +251,15 @@ tbody td{padding:7px 10px;vertical-align:middle}
   .cl-item-name{font-size:.72rem;}
 }
 
+/* Checklist modal — garante scroll só no cl-body */
+#modal-checklist .modal-box{display:flex;flex-direction:column;height:100dvh}
+#modal-checklist .modal-body#cl-body{flex:1;min-height:200px;overflow-y:auto}
+#cl-bottom-sections{overflow-y:auto;max-height:40vh;flex-shrink:0}
+@media(min-width:680px){
+  #modal-checklist .modal-box{height:92dvh}
+  #cl-bottom-sections{max-height:35vh}
+}
+
 /* Obs field dentro do modal */
 .modal-obs{padding:14px 18px;border-bottom:1px solid var(--border)}
 .modal-obs label{font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;display:block;margin-bottom:6px}
@@ -806,6 +815,9 @@ tbody td{padding:7px 10px;vertical-align:middle}
       <span>Qtde</span>
     </div>
     <div class="modal-body" id="cl-body"></div>
+
+    <!-- obs, carga e fotos ficam ABAIXO do scroll do checklist mas ainda dentro do modal -->
+    <div id="cl-bottom-sections" style="flex-shrink:0;border-top:2px solid var(--border)">
     <div class="modal-obs">
       <label>Observacoes gerais da manutencao</label>
       <textarea id="cl-obs" placeholder="Anote aqui qualquer observacao, peca trocada, problema encontrado..."></textarea>
@@ -867,6 +879,7 @@ tbody td{padding:7px 10px;vertical-align:middle}
       <input type="file" id="input-foto-camera"  accept="image/*" capture="environment" style="display:none" onchange="capturarFoto(this)">
       <input type="file" id="input-foto-galeria" accept="image/*"                       style="display:none" onchange="capturarFoto(this)">
     </div>
+    </div><!-- /cl-bottom-sections -->
 
     <div class="modal-footer">
       <button class="btn-big btn-big-cancel" onclick="fecharChecklist()">Minimizar</button>
