@@ -2944,8 +2944,10 @@ async function _executarExcluirManutencao(docId, tearNum) {
   if (btn) { btn.disabled = true; btn.textContent = 'Excluindo...'; }
   try {
     await histCol().doc(docId).delete();
+    // Reseta botão ANTES de fechar (modal persiste no DOM com display:none)
+    if (btn) { btn.disabled = false; btn.textContent = 'Sim, excluir'; }
     fecharConfirmarExcluir();
-    showToast('Manutenção do Tear ' + tearNum + ' excluída.');
+    showToast('Manutencao do Tear ' + tearNum + ' excluida.');
     // Remove da lista local e re-renderiza sem recarregar do Firestore
     _historicoTodos = _historicoTodos.filter(function(r){ return r._docId !== docId; });
     _aplicarFiltrosHistorico();
