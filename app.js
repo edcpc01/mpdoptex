@@ -436,8 +436,8 @@ function buildTable() {
         '<span class="row-timer" id="rt-'+i+'" style="display:'+(emManut?'inline':'none')+'">00:00</span>'+
       '</td>'+
       '<td><input class="cell-input input-date inp-info" type="date" id="d-'+i+'" value="'+initD+'" onchange="onChange('+i+')"></td>'+
-      '<td><input class="cell-input input-num inp-accent" type="number" id="r-'+i+'" value="'+initR+'" placeholder="0" oninput="calcRow('+i+')" onblur="onChange('+i+')"></td>'+
-      '<td><input class="cell-input input-num inp-accent" type="number" id="v-'+i+'" value="'+initV+'" placeholder="Leitura atual" oninput="calcRow('+i+')" onblur="onChange('+i+')"></td>'+
+      '<td class="td-realizado"><input class="cell-input input-num inp-accent" type="number" id="r-'+i+'" value="'+initR+'" placeholder="0" oninput="calcRow('+i+')" onblur="onChange('+i+')"></td>'+
+      '<td class="td-real"><input class="cell-input input-num inp-accent" type="number" id="v-'+i+'" value="'+initV+'" placeholder="Leitura atual" oninput="calcRow('+i+')" onblur="onChange('+i+')"></td>'+
       '<td id="saldo-'+i+'" class="hide-mobile" style="text-align:right;font-weight:500">-</td>'+
       '<td id="bar-'+i+'" class="hide-mobile">-</td>'+
       '<td id="fc-'+i+'">-</td>'+

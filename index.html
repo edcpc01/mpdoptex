@@ -104,44 +104,50 @@ tbody td{padding:7px 10px;vertical-align:middle}
   tbody tr{
     display:grid;
     grid-template-columns:38px minmax(0,1fr) auto auto;
-    grid-template-rows:auto auto;
+    grid-template-rows:auto auto auto;
     align-items:center;
     column-gap:8px;
+    row-gap:4px;
     padding:10px 12px;
     border-bottom:1px solid var(--border);
     width:100%;
     box-sizing:border-box;
     min-width:0;
   }
-  /* Tear nº */
-  tbody td:nth-child(1){grid-column:1;grid-row:1/3;display:flex;align-items:center;justify-content:center;padding:0}
+  /* Tear nº — ocupa as 3 linhas */
+  tbody td:nth-child(1){grid-column:1;grid-row:1/4;display:flex;align-items:center;justify-content:center;padding:0}
   /* Modelo */
-  tbody td:nth-child(2){grid-column:2;grid-row:1;padding:0 0 2px;font-size:.72rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  tbody td:nth-child(2){grid-column:2/5;grid-row:1;padding:0 0 2px;font-size:.72rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* RPM — some */
   tbody td:nth-child(3){display:none!important}
   /* Setup — some */
   tbody td:nth-child(4){display:none!important}
-  /* Chave + timer */
-  tbody td:nth-child(5){grid-column:3;grid-row:1;padding:0;display:flex;align-items:center;gap:4px;justify-content:flex-end}
-  /* Data manut */
+  /* Chave + timer — linha 1 direita */
+  tbody td:nth-child(5){grid-column:4;grid-row:1;padding:0;display:flex;align-items:center;gap:4px;justify-content:flex-end}
+  /* Data manut — linha 2 col 2 */
   tbody td:nth-child(6){grid-column:2;grid-row:2;padding:0}
-  /* Realizado — some */
-  tbody td:nth-child(7){display:none!important}
-  /* Real voltas — some */
-  tbody td:nth-child(8){display:none!important}
+  /* Realizado — linha 3 col 2 (visível no mobile!) */
+  tbody td.td-realizado{display:block!important;grid-column:2;grid-row:3;padding:0}
+  /* Real voltas — linha 3 col 3 (visível no mobile!) */
+  tbody td.td-real{display:block!important;grid-column:3/5;grid-row:3;padding:0}
   /* Saldo — some */
   tbody td:nth-child(9){display:none!important}
   /* Progresso — some */
   tbody td:nth-child(10){display:none!important}
-  /* Próxima */
-  tbody td:nth-child(11){grid-column:4;grid-row:1;padding:0;text-align:right;min-width:0}
-  /* Status */
-  tbody td:nth-child(12){grid-column:3/5;grid-row:2;padding:0;text-align:right}
+  /* Próxima — linha 2 col 3+4 */
+  tbody td:nth-child(11){grid-column:3/5;grid-row:2;padding:0;text-align:right;min-width:0}
+  /* Status — some no mobile (info já visível na próxima) */
+  tbody td:nth-child(12){display:none!important}
   /* Btn finish */
   tbody td:nth-child(13){display:none!important}
 
-  /* input de data compacto */
-  .input-date{font-size:.73rem;padding:4px 7px;min-width:0;width:100%;max-width:140px}
+  /* inputs mobile compactos */
+  .input-date{font-size:.73rem;padding:4px 7px;min-width:0;width:100%}
+  .td-realizado .cell-input,.td-real .cell-input{font-size:.7rem;padding:4px 6px;width:100%}
+
+  /* labels mobile nos campos extra */
+  .td-realizado::before{content:'Realizado';display:block;font-size:.58rem;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;font-family:'Barlow Condensed',sans-serif;font-weight:700}
+  .td-real::before{content:'Real (Voltas)';display:block;font-size:.58rem;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;margin-bottom:2px;font-family:'Barlow Condensed',sans-serif;font-weight:700}
 
   /* fc-date compacto */
   .fc-date{font-size:.75rem;white-space:nowrap}
