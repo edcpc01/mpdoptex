@@ -924,11 +924,10 @@ function renderHistorico(lista) {
     body.innerHTML = '<div class="empty-state"><p>Nenhuma manutencao registrada neste periodo.</p></div>';
     return;
   }
-  // Atualiza contador
   var countEl = document.getElementById('hist-count');
   if (countEl) countEl.textContent = lista.length + ' registro' + (lista.length !== 1 ? 's' : '');
 
-  var podeComentar = (currentRole === 'tecnico' || currentRole === 'admin');
+  var podeEditar = (currentRole === 'tecnico' || currentRole === 'admin');
   body.innerHTML = lista.map(function(r) {
     var dt    = new Date(r.inicio);
     var dtFmt = dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -940,155 +939,88 @@ function renderHistorico(lista) {
     var editadoInfo = r._editadoEm ? '<span style="color:var(--warn);font-size:.65rem">&#9998; Editado por '+r._editadoPor+' em '+new Date(r._editadoEm).toLocaleDateString('pt-BR')+' '+new Date(r._editadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</span>' : '';
     var btnEditar  = (currentRole === 'admin' && r._docId) ? '<button class="btn-editar-manut" onclick="abrirEditarManutencao(\'' + r._docId + '\')" title="Editar manutencao">&#9998; Editar</button>' : '';
     var btnExcluir = (currentRole === 'admin' && r._docId) ? '<button class="btn-excluir-manut" onclick="confirmarExcluirManutencao(\'' + r._docId + '\','+r.tear+')" title="Excluir registro">&#128465; Excluir</button>' : '';
-    var numComt = (r._comentarios && r._comentarios.length) ? r._comentarios.length : 0;
-    var btnExpand = r._docId ? '<button class="btn-expandir-hist" onclick="toggleComentarios(this,\''+r._docId+'\')">'+
-      '<i class="exp-arrow">&#9660;</i> '+(numComt > 0 ? numComt+' coment'+( numComt>1?'ários':'ário') : 'Comentários')+
-      '</button>' : '';
-    var novoComt = podeComentar ? (
-      '<div class="comt-novo">'+
-        '<div class="comt-novo-title">&#43; Adicionar comentário</div>'+
-        '<textarea placeholder="Descreva a observação pós-manutenção..." id="comt-txt-'+r._docId+'"></textarea>'+
-        '<div class="comt-novo-fotos" id="comt-fotos-preview-'+r._docId+'"></div>'+
-        '<div class="comt-novo-actions">'+
-          '<button class="btn-comt-foto" onclick="abrirFotoComt(\''+r._docId+'\')">&#128247; Foto</button>'+
-          '<input type="file" id="comt-foto-inp-'+r._docId+'" accept="image/*" multiple style="display:none" onchange="capturarFotoComt(this,\''+r._docId+'\')">'+
-          '<button class="btn-comt-salvar" onclick="salvarComentario(\''+r._docId+'\','+r.tear+')" id="comt-btn-'+r._docId+'">Salvar</button>'+
-        '</div>'+
-      '</div>'
-    ) : '';
+    var nFotos = (r.fotos && r.fotos.length) ? r.fotos.length : 0;
+
+    // Observações — editável inline por técnico/admin
+    var obsHtml = '';
+    if (r._docId) {
+      if (podeEditar) {
+        obsHtml = '<div class="hist-obs-wrap">'+
+          '<textarea class="hist-obs-input" id="obs-inp-'+r._docId+'" placeholder="Observações da manutenção...">'+(r.obs||'')+'</textarea>'+
+          '<div class="hist-obs-actions" id="obs-actions-'+r._docId+'" style="display:none">'+
+            '<button class="btn-obs-salvar" onclick="salvarObsHistorico(\''+r._docId+'\')">Salvar</button>'+
+            '<button class="btn-obs-cancelar" onclick="cancelarObsHistorico(\''+r._docId+'\',\''+encodeURIComponent(r.obs||'')+'\')">Cancelar</button>'+
+          '</div>'+
+        '</div>';
+      } else {
+        obsHtml = r.obs ? '<div class="hist-obs">'+r.obs+'</div>' : '';
+      }
+    }
+
+    // Fotos — botão ver + botão adicionar para técnico/admin
+    var fotosHtml = '<div class="hist-fotos-wrap">';
+    if (nFotos > 0) {
+      fotosHtml += '<button class="btn-ver-fotos" onclick="verFotosHistorico(\''+r._docId+'\')">&#128247; '+nFotos+' foto'+(nFotos>1?'s':'')+' anexada'+(nFotos>1?'s':'')+'</button>';
+    }
+    if (podeEditar && r._docId) {
+      fotosHtml += '<button class="btn-add-foto-hist" onclick="abrirFotoHistorico(\''+r._docId+'\')">&#43; Foto</button>'+
+        '<input type="file" id="foto-hist-inp-'+r._docId+'" accept="image/*" multiple style="display:none" onchange="capturarFotoHistorico(this,\''+r._docId+'\')">';
+    }
+    fotosHtml += '</div>';
+
     return '<div class="hist-item" id="hist-item-'+r._docId+'">'+
-      '<div class="hist-head"><span class="hist-tear">Tear '+r.tear+'</span><span class="hist-modelo">'+r.modelo+'</span><span class="hist-date">'+dtFmt+'</span>'+btnEditar+btnExcluir+btnExpand+'</div>'+
+      '<div class="hist-head"><span class="hist-tear">Tear '+r.tear+'</span><span class="hist-modelo">'+r.modelo+'</span><span class="hist-date">'+dtFmt+'</span>'+btnEditar+btnExcluir+'</div>'+
       '<div class="hist-meta">'+
         '<span>&#9201; <strong>'+durStr+'</strong></span>'+
         '<span>&#128295; <strong>'+itens+'/'+CHECKLIST_ITENS.length+' itens</strong></span>'+
         '<span>&#128100; <strong>'+(r.tecnico||'-')+'</strong></span>'+
       '</div>'+
       (editadoInfo ? '<div style="padding:4px 0">'+editadoInfo+'</div>' : '')+
-      (r.obs ? '<div class="hist-obs">'+r.obs+'</div>' : '')+
-      (r.fotos && r.fotos.length ? '<div class="hist-fotos"><button class="btn-ver-fotos" onclick="verFotosHistorico(\''+r._docId+'\')">&#128247; '+r.fotos.length+' foto'+(r.fotos.length>1?'s':'')+' anexada'+(r.fotos.length>1?'s':'')+'</button></div>' : '')+
-      '<div class="hist-comentarios" id="comt-area-'+r._docId+'">'+
-        '<div class="comt-lista" id="comt-lista-'+r._docId+'"><div class="comt-vazio">Carregando...</div></div>'+
-        novoComt+
-      '</div>'+
+      obsHtml+
+      fotosHtml+
     '</div>';
   }).join('');
+
+  // Ativa detecção de edição nas obs
+  if (podeEditar) _attachObsListeners();
 }
 
-// =============================================================================
-//  COMENTÁRIOS PÓS-MANUTENÇÃO
-//  Subcoleção: /empresa/mpdoptex/historico/{docId}/comentarios/{id}
-// =============================================================================
-var _comtFotosTemp = {}; // docId -> array de {data, tipo}
-
-function comentariosCol(docId) {
-  return histCol().doc(docId).collection('comentarios');
+function _attachObsListeners() {
+  document.querySelectorAll('.hist-obs-input').forEach(function(ta) {
+    var docId = ta.id.replace('obs-inp-', '');
+    var original = ta.value;
+    ta.addEventListener('input', function() {
+      var actions = document.getElementById('obs-actions-' + docId);
+      if (actions) actions.style.display = ta.value !== original ? 'flex' : 'none';
+    });
+    ta.addEventListener('focus', function() {
+      var actions = document.getElementById('obs-actions-' + docId);
+      if (actions && ta.value !== original) actions.style.display = 'flex';
+    });
+  });
 }
 
-function toggleComentarios(btn, docId) {
-  var item = document.getElementById('hist-item-' + docId);
-  if (!item) return;
-  var jaAberto = item.classList.contains('expandido');
-  item.classList.toggle('expandido');
-  if (!jaAberto) {
-    _carregarComentarios(docId);
-    if (!_comtFotosTemp[docId]) _comtFotosTemp[docId] = [];
-  }
-}
-
-async function _carregarComentarios(docId) {
-  var lista = document.getElementById('comt-lista-' + docId);
-  if (!lista) return;
-  lista.innerHTML = '<div class="comt-vazio">Carregando...</div>';
-  try {
-    var snap = await comentariosCol(docId).orderBy('criadoEm', 'asc').get();
-    if (snap.empty) {
-      lista.innerHTML = '<div class="comt-vazio">Nenhum comentário ainda.</div>';
-      return;
-    }
-    lista.innerHTML = snap.docs.map(function(doc) {
-      var c = doc.data();
-      var cId = doc.id;
-      var dt = c.criadoEm ? new Date(c.criadoEm).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+new Date(c.criadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
-      var fotos = (c.fotos||[]).map(function(f, fi) {
-        return '<img src="'+f.data+'" class="comt-foto-thumb" onclick="verFotoComt(\''+docId+'\',\''+cId+'\','+fi+')" title="Ver foto">';
-      }).join('');
-      var btnDel = (currentRole === 'admin' || (currentUser && currentUser.email === c.autorEmail))
-        ? '<button class="comt-btn-del" onclick="excluirComentario(\''+docId+'\',\''+cId+'\')">&#128465;</button>' : '';
-      return '<div class="comt-entry" id="comt-'+cId+'">'+
-        '<div class="comt-entry-meta">'+
-          '<span class="comt-entry-autor">'+c.autor+'</span>'+
-          '<span class="comt-entry-data">'+dt+'</span>'+
-          btnDel+
-        '</div>'+
-        (c.texto ? '<div class="comt-entry-text">'+c.texto+'</div>' : '')+
-        (fotos ? '<div class="comt-entry-fotos">'+fotos+'</div>' : '')+
-      '</div>';
-    }).join('');
-  } catch(e) {
-    lista.innerHTML = '<div class="comt-vazio">Erro ao carregar: '+e.message+'</div>';
-  }
-}
-
-function abrirFotoComt(docId) {
-  document.getElementById('comt-foto-inp-' + docId).click();
-}
-
-async function capturarFotoComt(input, docId) {
-  if (!input.files || !input.files.length) return;
-  if (!_comtFotosTemp[docId]) _comtFotosTemp[docId] = [];
-  for (var i = 0; i < input.files.length; i++) {
-    var compressed = await _comprimirImagem(input.files[i], 1200, 0.6);
-    _comtFotosTemp[docId].push({ data: compressed, tipo: input.files[i].type });
-  }
-  input.value = '';
-  _renderFotosNovoComt(docId);
-}
-
-function _renderFotosNovoComt(docId) {
-  var container = document.getElementById('comt-fotos-preview-' + docId);
-  if (!container) return;
-  var fotos = _comtFotosTemp[docId] || [];
-  if (!fotos.length) { container.innerHTML = ''; return; }
-  container.innerHTML = fotos.map(function(f, idx) {
-    return '<div style="position:relative;display:inline-block">'+
-      '<img src="'+f.data+'" class="comt-novo-foto-preview">'+
-      '<button onclick="removerFotoComt(\''+docId+'\','+idx+')" style="position:absolute;top:-4px;right:-4px;background:#ef4444;border:none;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;line-height:16px;padding:0">&#10005;</button>'+
-    '</div>';
-  }).join('');
-}
-
-function removerFotoComt(docId, idx) {
-  if (_comtFotosTemp[docId]) _comtFotosTemp[docId].splice(idx, 1);
-  _renderFotosNovoComt(docId);
-}
-
-async function salvarComentario(docId, tearNum) {
-  if (!currentUser) return;
-  var txtEl = document.getElementById('comt-txt-' + docId);
-  var btn   = document.getElementById('comt-btn-' + docId);
-  var texto = txtEl ? txtEl.value.trim() : '';
-  var fotos = _comtFotosTemp[docId] || [];
-  if (!texto && !fotos.length) { showToast('Digite um comentário ou adicione uma foto.'); return; }
+async function salvarObsHistorico(docId) {
+  var ta  = document.getElementById('obs-inp-' + docId);
+  var btn = document.querySelector('#obs-actions-'+docId+' .btn-obs-salvar');
+  if (!ta || !db) return;
+  var novaObs = ta.value.trim();
   if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
   try {
-    var nomeUsuario = currentUser.displayName || currentUser.email.split('@')[0];
-    await comentariosCol(docId).add({
-      texto:      texto,
-      fotos:      fotos,
-      autor:      nomeUsuario,
-      autorEmail: currentUser.email,
-      criadoEm:   new Date().toISOString(),
-      tear:       tearNum
+    await histCol().doc(docId).update({ obs: novaObs });
+    // Atualiza cache local
+    var r = _historicoTodos.find(function(x){ return x._docId === docId; });
+    if (r) r.obs = novaObs;
+    var actions = document.getElementById('obs-actions-' + docId);
+    if (actions) actions.style.display = 'none';
+    showToast('Observação salva!');
+    // Reinicia listener com novo valor original
+    ta.removeEventListener('input', ta._obsHandler);
+    var newOriginal = novaObs;
+    ta.addEventListener('input', function() {
+      var ac = document.getElementById('obs-actions-' + docId);
+      if (ac) ac.style.display = ta.value !== newOriginal ? 'flex' : 'none';
     });
-    // Limpa campos
-    if (txtEl) txtEl.value = '';
-    _comtFotosTemp[docId] = [];
-    _renderFotosNovoComt(docId);
-    // Atualiza contador no botão
-    _atualizarContadorComt(docId);
-    // Recarrega lista
-    _carregarComentarios(docId);
-    showToast('Comentário salvo!');
   } catch(e) {
     showToast('Erro ao salvar: ' + e.message);
   } finally {
@@ -1096,41 +1028,50 @@ async function salvarComentario(docId, tearNum) {
   }
 }
 
-async function excluirComentario(docId, comentId) {
-  if (!confirm('Excluir este comentário?')) return;
-  try {
-    await comentariosCol(docId).doc(comentId).delete();
-    var el = document.getElementById('comt-' + comentId);
-    if (el) el.remove();
-    _atualizarContadorComt(docId);
-    showToast('Comentário excluído.');
-  } catch(e) {
-    showToast('Erro: ' + e.message);
-  }
+function cancelarObsHistorico(docId, obsOriginalEncoded) {
+  var ta = document.getElementById('obs-inp-' + docId);
+  if (ta) ta.value = decodeURIComponent(obsOriginalEncoded);
+  var actions = document.getElementById('obs-actions-' + docId);
+  if (actions) actions.style.display = 'none';
 }
 
-async function _atualizarContadorComt(docId) {
+function abrirFotoHistorico(docId) {
+  document.getElementById('foto-hist-inp-' + docId).click();
+}
+
+async function capturarFotoHistorico(input, docId) {
+  if (!input.files || !input.files.length) return;
+  var r = _historicoTodos.find(function(x){ return x._docId === docId; });
+  if (!r) return;
+  var fotosAtuais = r.fotos ? r.fotos.slice() : [];
+  showToast('Comprimindo foto...');
   try {
-    var snap = await comentariosCol(docId).get();
-    var n = snap.size;
-    var btn = document.querySelector('#hist-item-'+docId+' .btn-expandir-hist');
-    if (btn) {
-      btn.innerHTML = '<i class="exp-arrow">&#9660;</i> '+(n > 0 ? n+' coment'+(n>1?'ários':'ário') : 'Comentários');
+    for (var i = 0; i < input.files.length; i++) {
+      var compressed = await _comprimirImagem(input.files[i], 1200, 0.6);
+      fotosAtuais.push({ data: compressed, tipo: input.files[i].type });
     }
-  } catch(e) {}
-}
-
-// Visualizar foto de comentário no overlay existente
-var _comtFotoView = { docId: null, comentId: null, idx: 0, fotos: [] };
-async function verFotoComt(docId, comentId, idx) {
-  try {
-    var snap = await comentariosCol(docId).doc(comentId).get();
-    var fotos = snap.data().fotos || [];
-    _comtFotoView = { docId: docId, comentId: comentId, idx: idx, fotos: fotos };
-    var overlay = document.getElementById('foto-ampliada-overlay');
-    var img     = document.getElementById('foto-ampliada-img');
-    if (overlay && img && fotos[idx]) { img.src = fotos[idx].data; overlay.style.display = 'flex'; }
-  } catch(e) {}
+    input.value = '';
+    await histCol().doc(docId).update({ fotos: fotosAtuais });
+    r.fotos = fotosAtuais;
+    // Atualiza botão de fotos sem re-renderizar tudo
+    var wrap = document.querySelector('#hist-item-'+docId+' .hist-fotos-wrap');
+    if (wrap) {
+      var n = fotosAtuais.length;
+      var btnVer = wrap.querySelector('.btn-ver-fotos');
+      if (btnVer) {
+        btnVer.textContent = '\uD83D\uDCF7 '+n+' foto'+(n>1?'s':'')+' anexada'+(n>1?'s':'');
+      } else {
+        var novo = document.createElement('button');
+        novo.className = 'btn-ver-fotos';
+        novo.onclick = function(){ verFotosHistorico(docId); };
+        novo.textContent = '\uD83D\uDCF7 '+n+' foto'+(n>1?'s':'')+' anexada'+(n>1?'s':'');
+        wrap.insertBefore(novo, wrap.querySelector('.btn-add-foto-hist'));
+      }
+    }
+    showToast('Foto adicionada!');
+  } catch(e) {
+    showToast('Erro ao salvar foto: ' + e.message);
+  }
 }
 
 // =============================================================================
