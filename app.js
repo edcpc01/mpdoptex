@@ -928,6 +928,7 @@ function renderHistorico(lista) {
   var countEl = document.getElementById('hist-count');
   if (countEl) countEl.textContent = lista.length + ' registro' + (lista.length !== 1 ? 's' : '');
 
+  var podeComentar = (currentRole === 'tecnico' || currentRole === 'admin');
   body.innerHTML = lista.map(function(r) {
     var dt    = new Date(r.inicio);
     var dtFmt = dt.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+dt.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
@@ -939,8 +940,24 @@ function renderHistorico(lista) {
     var editadoInfo = r._editadoEm ? '<span style="color:var(--warn);font-size:.65rem">&#9998; Editado por '+r._editadoPor+' em '+new Date(r._editadoEm).toLocaleDateString('pt-BR')+' '+new Date(r._editadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})+'</span>' : '';
     var btnEditar  = (currentRole === 'admin' && r._docId) ? '<button class="btn-editar-manut" onclick="abrirEditarManutencao(\'' + r._docId + '\')" title="Editar manutencao">&#9998; Editar</button>' : '';
     var btnExcluir = (currentRole === 'admin' && r._docId) ? '<button class="btn-excluir-manut" onclick="confirmarExcluirManutencao(\'' + r._docId + '\','+r.tear+')" title="Excluir registro">&#128465; Excluir</button>' : '';
-    return '<div class="hist-item">'+
-      '<div class="hist-head"><span class="hist-tear">Tear '+r.tear+'</span><span class="hist-modelo">'+r.modelo+'</span><span class="hist-date">'+dtFmt+'</span>'+btnEditar+btnExcluir+'</div>'+
+    var numComt = (r._comentarios && r._comentarios.length) ? r._comentarios.length : 0;
+    var btnExpand = r._docId ? '<button class="btn-expandir-hist" onclick="toggleComentarios(this,\''+r._docId+'\')">'+
+      '<i class="exp-arrow">&#9660;</i> '+(numComt > 0 ? numComt+' coment'+( numComt>1?'ários':'ário') : 'Comentários')+
+      '</button>' : '';
+    var novoComt = podeComentar ? (
+      '<div class="comt-novo">'+
+        '<div class="comt-novo-title">&#43; Adicionar comentário</div>'+
+        '<textarea placeholder="Descreva a observação pós-manutenção..." id="comt-txt-'+r._docId+'"></textarea>'+
+        '<div class="comt-novo-fotos" id="comt-fotos-preview-'+r._docId+'"></div>'+
+        '<div class="comt-novo-actions">'+
+          '<button class="btn-comt-foto" onclick="abrirFotoComt(\''+r._docId+'\')">&#128247; Foto</button>'+
+          '<input type="file" id="comt-foto-inp-'+r._docId+'" accept="image/*" multiple style="display:none" onchange="capturarFotoComt(this,\''+r._docId+'\')">'+
+          '<button class="btn-comt-salvar" onclick="salvarComentario(\''+r._docId+'\','+r.tear+')" id="comt-btn-'+r._docId+'">Salvar</button>'+
+        '</div>'+
+      '</div>'
+    ) : '';
+    return '<div class="hist-item" id="hist-item-'+r._docId+'">'+
+      '<div class="hist-head"><span class="hist-tear">Tear '+r.tear+'</span><span class="hist-modelo">'+r.modelo+'</span><span class="hist-date">'+dtFmt+'</span>'+btnEditar+btnExcluir+btnExpand+'</div>'+
       '<div class="hist-meta">'+
         '<span>&#9201; <strong>'+durStr+'</strong></span>'+
         '<span>&#128295; <strong>'+itens+'/'+CHECKLIST_ITENS.length+' itens</strong></span>'+
@@ -949,8 +966,171 @@ function renderHistorico(lista) {
       (editadoInfo ? '<div style="padding:4px 0">'+editadoInfo+'</div>' : '')+
       (r.obs ? '<div class="hist-obs">'+r.obs+'</div>' : '')+
       (r.fotos && r.fotos.length ? '<div class="hist-fotos"><button class="btn-ver-fotos" onclick="verFotosHistorico(\''+r._docId+'\')">&#128247; '+r.fotos.length+' foto'+(r.fotos.length>1?'s':'')+' anexada'+(r.fotos.length>1?'s':'')+'</button></div>' : '')+
+      '<div class="hist-comentarios" id="comt-area-'+r._docId+'">'+
+        '<div class="comt-lista" id="comt-lista-'+r._docId+'"><div class="comt-vazio">Carregando...</div></div>'+
+        novoComt+
+      '</div>'+
     '</div>';
   }).join('');
+}
+
+// =============================================================================
+//  COMENTÁRIOS PÓS-MANUTENÇÃO
+//  Subcoleção: /empresa/mpdoptex/historico/{docId}/comentarios/{id}
+// =============================================================================
+var _comtFotosTemp = {}; // docId -> array de {data, tipo}
+
+function comentariosCol(docId) {
+  return histCol().doc(docId).collection('comentarios');
+}
+
+function toggleComentarios(btn, docId) {
+  var item = document.getElementById('hist-item-' + docId);
+  if (!item) return;
+  var jaAberto = item.classList.contains('expandido');
+  item.classList.toggle('expandido');
+  if (!jaAberto) {
+    _carregarComentarios(docId);
+    if (!_comtFotosTemp[docId]) _comtFotosTemp[docId] = [];
+  }
+}
+
+async function _carregarComentarios(docId) {
+  var lista = document.getElementById('comt-lista-' + docId);
+  if (!lista) return;
+  lista.innerHTML = '<div class="comt-vazio">Carregando...</div>';
+  try {
+    var snap = await comentariosCol(docId).orderBy('criadoEm', 'asc').get();
+    if (snap.empty) {
+      lista.innerHTML = '<div class="comt-vazio">Nenhum comentário ainda.</div>';
+      return;
+    }
+    lista.innerHTML = snap.docs.map(function(doc) {
+      var c = doc.data();
+      var cId = doc.id;
+      var dt = c.criadoEm ? new Date(c.criadoEm).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'})+' '+new Date(c.criadoEm).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+      var fotos = (c.fotos||[]).map(function(f, fi) {
+        return '<img src="'+f.data+'" class="comt-foto-thumb" onclick="verFotoComt(\''+docId+'\',\''+cId+'\','+fi+')" title="Ver foto">';
+      }).join('');
+      var btnDel = (currentRole === 'admin' || (currentUser && currentUser.email === c.autorEmail))
+        ? '<button class="comt-btn-del" onclick="excluirComentario(\''+docId+'\',\''+cId+'\')">&#128465;</button>' : '';
+      return '<div class="comt-entry" id="comt-'+cId+'">'+
+        '<div class="comt-entry-meta">'+
+          '<span class="comt-entry-autor">'+c.autor+'</span>'+
+          '<span class="comt-entry-data">'+dt+'</span>'+
+          btnDel+
+        '</div>'+
+        (c.texto ? '<div class="comt-entry-text">'+c.texto+'</div>' : '')+
+        (fotos ? '<div class="comt-entry-fotos">'+fotos+'</div>' : '')+
+      '</div>';
+    }).join('');
+  } catch(e) {
+    lista.innerHTML = '<div class="comt-vazio">Erro ao carregar: '+e.message+'</div>';
+  }
+}
+
+function abrirFotoComt(docId) {
+  document.getElementById('comt-foto-inp-' + docId).click();
+}
+
+async function capturarFotoComt(input, docId) {
+  if (!input.files || !input.files.length) return;
+  if (!_comtFotosTemp[docId]) _comtFotosTemp[docId] = [];
+  for (var i = 0; i < input.files.length; i++) {
+    var compressed = await _comprimirImagem(input.files[i], 1200, 0.6);
+    _comtFotosTemp[docId].push({ data: compressed, tipo: input.files[i].type });
+  }
+  input.value = '';
+  _renderFotosNovoComt(docId);
+}
+
+function _renderFotosNovoComt(docId) {
+  var container = document.getElementById('comt-fotos-preview-' + docId);
+  if (!container) return;
+  var fotos = _comtFotosTemp[docId] || [];
+  if (!fotos.length) { container.innerHTML = ''; return; }
+  container.innerHTML = fotos.map(function(f, idx) {
+    return '<div style="position:relative;display:inline-block">'+
+      '<img src="'+f.data+'" class="comt-novo-foto-preview">'+
+      '<button onclick="removerFotoComt(\''+docId+'\','+idx+')" style="position:absolute;top:-4px;right:-4px;background:#ef4444;border:none;color:#fff;border-radius:50%;width:16px;height:16px;font-size:9px;cursor:pointer;line-height:16px;padding:0">&#10005;</button>'+
+    '</div>';
+  }).join('');
+}
+
+function removerFotoComt(docId, idx) {
+  if (_comtFotosTemp[docId]) _comtFotosTemp[docId].splice(idx, 1);
+  _renderFotosNovoComt(docId);
+}
+
+async function salvarComentario(docId, tearNum) {
+  if (!currentUser) return;
+  var txtEl = document.getElementById('comt-txt-' + docId);
+  var btn   = document.getElementById('comt-btn-' + docId);
+  var texto = txtEl ? txtEl.value.trim() : '';
+  var fotos = _comtFotosTemp[docId] || [];
+  if (!texto && !fotos.length) { showToast('Digite um comentário ou adicione uma foto.'); return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+  try {
+    var nomeUsuario = currentUser.displayName || currentUser.email.split('@')[0];
+    await comentariosCol(docId).add({
+      texto:      texto,
+      fotos:      fotos,
+      autor:      nomeUsuario,
+      autorEmail: currentUser.email,
+      criadoEm:   new Date().toISOString(),
+      tear:       tearNum
+    });
+    // Limpa campos
+    if (txtEl) txtEl.value = '';
+    _comtFotosTemp[docId] = [];
+    _renderFotosNovoComt(docId);
+    // Atualiza contador no botão
+    _atualizarContadorComt(docId);
+    // Recarrega lista
+    _carregarComentarios(docId);
+    showToast('Comentário salvo!');
+  } catch(e) {
+    showToast('Erro ao salvar: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; }
+  }
+}
+
+async function excluirComentario(docId, comentId) {
+  if (!confirm('Excluir este comentário?')) return;
+  try {
+    await comentariosCol(docId).doc(comentId).delete();
+    var el = document.getElementById('comt-' + comentId);
+    if (el) el.remove();
+    _atualizarContadorComt(docId);
+    showToast('Comentário excluído.');
+  } catch(e) {
+    showToast('Erro: ' + e.message);
+  }
+}
+
+async function _atualizarContadorComt(docId) {
+  try {
+    var snap = await comentariosCol(docId).get();
+    var n = snap.size;
+    var btn = document.querySelector('#hist-item-'+docId+' .btn-expandir-hist');
+    if (btn) {
+      btn.innerHTML = '<i class="exp-arrow">&#9660;</i> '+(n > 0 ? n+' coment'+(n>1?'ários':'ário') : 'Comentários');
+    }
+  } catch(e) {}
+}
+
+// Visualizar foto de comentário no overlay existente
+var _comtFotoView = { docId: null, comentId: null, idx: 0, fotos: [] };
+async function verFotoComt(docId, comentId, idx) {
+  try {
+    var snap = await comentariosCol(docId).doc(comentId).get();
+    var fotos = snap.data().fotos || [];
+    _comtFotoView = { docId: docId, comentId: comentId, idx: idx, fotos: fotos };
+    var overlay = document.getElementById('foto-ampliada-overlay');
+    var img     = document.getElementById('foto-ampliada-img');
+    if (overlay && img && fotos[idx]) { img.src = fotos[idx].data; overlay.style.display = 'flex'; }
+  } catch(e) {}
 }
 
 // =============================================================================

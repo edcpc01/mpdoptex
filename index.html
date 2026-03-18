@@ -612,6 +612,38 @@ tbody td{padding:7px 10px;vertical-align:middle}
 .btn-ver-fotos{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--info);font-size:.72rem;padding:3px 10px;border-radius:6px;cursor:pointer;font-family:'Barlow',sans-serif;transition:background .15s}
 .btn-ver-fotos:hover{background:rgba(56,189,248,.25)}
 
+/* ── COMENTÁRIOS PÓS-MANUTENÇÃO ── */
+.btn-expandir-hist{background:none;border:none;color:var(--muted);cursor:pointer;font-size:.72rem;display:flex;align-items:center;gap:4px;padding:2px 6px;border-radius:5px;transition:color .15s,background .15s;margin-left:auto;white-space:nowrap;font-family:'Barlow',sans-serif}
+.btn-expandir-hist:hover{color:var(--accent);background:rgba(249,115,22,.08)}
+.btn-expandir-hist .exp-arrow{display:inline-block;transition:transform .2s;font-style:normal}
+.hist-item.expandido .exp-arrow{transform:rotate(180deg)}
+.hist-comentarios{display:none;border-top:1px solid var(--border);margin-top:8px;padding-top:12px;flex-direction:column;gap:10px}
+.hist-item.expandido .hist-comentarios{display:flex}
+.comt-lista{display:flex;flex-direction:column;gap:8px}
+.comt-entry{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}
+.comt-entry-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.comt-entry-autor{font-size:.68rem;font-weight:700;color:var(--accent);font-family:'Barlow Condensed',sans-serif;text-transform:uppercase}
+.comt-entry-data{font-size:.65rem;color:var(--muted)}
+.comt-entry-text{font-size:.78rem;color:var(--text);line-height:1.45}
+.comt-entry-fotos{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.comt-foto-thumb{width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer;transition:opacity .15s}
+.comt-foto-thumb:hover{opacity:.8}
+.comt-btn-del{background:none;border:none;color:rgba(239,68,68,.6);cursor:pointer;font-size:.7rem;padding:2px 6px;border-radius:4px;transition:color .15s}
+.comt-btn-del:hover{color:#ef4444}
+.comt-novo{background:rgba(249,115,22,.04);border:1px solid rgba(249,115,22,.15);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.comt-novo-title{font-size:.68rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.07em;font-family:'Barlow Condensed',sans-serif}
+.comt-novo textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:'Barlow',sans-serif;font-size:.82rem;padding:8px 10px;resize:vertical;min-height:64px;box-sizing:border-box}
+.comt-novo textarea:focus{outline:none;border-color:var(--accent)}
+.comt-novo-fotos{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.comt-novo-foto-preview{width:52px;height:52px;object-fit:cover;border-radius:6px;border:1px solid var(--border);cursor:pointer}
+.comt-novo-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.btn-comt-foto{background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.25);color:var(--info);font-size:.72rem;padding:4px 10px;border-radius:6px;cursor:pointer;font-family:'Barlow',sans-serif;display:flex;align-items:center;gap:4px;transition:background .15s}
+.btn-comt-foto:hover{background:rgba(56,189,248,.25)}
+.btn-comt-salvar{background:var(--accent);border:none;color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:.8rem;padding:6px 16px;border-radius:6px;cursor:pointer;letter-spacing:.05em;transition:opacity .15s;margin-left:auto}
+.btn-comt-salvar:hover{opacity:.85}
+.btn-comt-salvar:disabled{opacity:.5;cursor:default}
+.comt-vazio{font-size:.75rem;color:var(--muted);font-style:italic}
+
 
 /* OVERRIDE: garante visibilidade dos cards de teares em qualquer contexto */
 .tear-card,.tear-card *{visibility:visible!important}
