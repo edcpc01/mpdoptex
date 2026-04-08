@@ -2938,7 +2938,60 @@ async function abrirEditarManutencao(docId) {
   // Checklist
   _renderEditChecklist(r.checklist || {});
 
+  // Fotos — cópia local editável
+  _editFotosTemp = (r.fotos || []).slice();
+  _renderEditFotos();
+
   modal.classList.add('open');
+}
+
+var _editFotosTemp = [];
+
+function _renderEditFotos() {
+  var wrap = document.getElementById('edit-fotos-wrap');
+  if (!wrap) return;
+  if (!_editFotosTemp.length) {
+    wrap.innerHTML = '<span style="color:var(--muted);font-size:.75rem;font-style:italic">Nenhuma foto anexada.</span>';
+    return;
+  }
+  wrap.innerHTML = _editFotosTemp.map(function(f, idx) {
+    return '<div style="position:relative;display:inline-block">'+
+      '<img src="'+f.data+'" style="width:80px;height:80px;object-fit:cover;border-radius:8px;border:1px solid var(--border);cursor:pointer;display:block" onclick="verFotoEditModal('+idx+')" title="Ver foto">'+
+      '<button onclick="editRemoverFoto('+idx+')" title="Excluir foto" '+
+        'style="position:absolute;top:-6px;right:-6px;background:#ef4444;border:none;color:#fff;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;line-height:20px;padding:0;font-weight:700">&#10005;</button>'+
+    '</div>';
+  }).join('');
+}
+
+function editRemoverFoto(idx) {
+  if (!confirm('Excluir esta foto?')) return;
+  _editFotosTemp.splice(idx, 1);
+  _renderEditFotos();
+}
+
+async function editAdicionarFoto(input) {
+  if (!input.files || !input.files.length) return;
+  showToast('Comprimindo foto...');
+  for (var i = 0; i < input.files.length; i++) {
+    var compressed = await _comprimirImagem(input.files[i], 1200, 0.6);
+    _editFotosTemp.push({ data: compressed, tipo: input.files[i].type });
+  }
+  input.value = '';
+  _renderEditFotos();
+  showToast('Foto adicionada. Salve para confirmar.');
+}
+
+function verFotoEditModal(idx) {
+  var overlay = document.getElementById('foto-ampliada-overlay');
+  var img     = document.getElementById('foto-ampliada-img');
+  window._fotoViewList  = _editFotosTemp;
+  window._fotoViewIndex = idx;
+  if (overlay && img && _editFotosTemp[idx]) {
+    img.src = _editFotosTemp[idx].data;
+    document.getElementById('foto-nav-info').textContent = (idx+1) + ' / ' + _editFotosTemp.length;
+    document.getElementById('foto-nav').style.display = _editFotosTemp.length > 1 ? 'flex' : 'none';
+    overlay.style.display = 'flex';
+  }
 }
 
 function _renderEditChecklist(checklist) {
@@ -3020,6 +3073,7 @@ async function salvarEdicaoManutencao() {
       checklist:    checklist,
       cargaAgulha:  cargaAgulha,
       cargaPlatina: cargaPlatina,
+      fotos:        _editFotosTemp,
       // Auditoria
       _editadoEm:   isoLocalBR(new Date()),
       _editadoPor:  currentUser.displayName || currentUser.email,
