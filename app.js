@@ -2603,6 +2603,7 @@ function _mostrarManutRemota(i, startMs, tecnico) {
     timerInterval: null,
     checklist:     {},
     obs:           '',
+    fotos:         [],
     _remote:       true,
     _tecnico:      tecnico
   };
@@ -3157,6 +3158,7 @@ async function capturarFoto(input) {
 
   try {
     var base64 = await _comprimirImagem(file, 1200, 0.60);
+    if (!manutsAtivas[clTearIndex].fotos) manutsAtivas[clTearIndex].fotos = [];
     manutsAtivas[clTearIndex].fotos.push({
       data:     base64,
       nome:     file.name,
@@ -3211,7 +3213,7 @@ function _renderFotosPreview(tearIdx) {
 }
 
 function removerFoto(tearIdx, idx) {
-  if (!manutsAtivas[tearIdx]) return;
+  if (!manutsAtivas[tearIdx] || !manutsAtivas[tearIdx].fotos) return;
   manutsAtivas[tearIdx].fotos.splice(idx, 1);
   _renderFotosPreview(tearIdx);
 }
